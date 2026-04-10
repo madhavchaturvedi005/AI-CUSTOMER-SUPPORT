@@ -32,6 +32,10 @@ class SessionState:
     call_router: Optional[Any] = None
     call_start_time: Optional[datetime] = None
     
+    # Tool calling support
+    tool_executor: Optional[Any] = None
+    pending_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    
     def reset_on_stream_start(self, stream_sid: str) -> None:
         """Reset state when a new stream starts."""
         self.stream_sid = stream_sid
@@ -92,4 +96,38 @@ class SessionState:
     def clear_conversation_history(self) -> None:
         """Clear conversation history."""
         self.conversation_history.clear()
+    
+    def initialize_tool_executor(
+        self,
+        appointment_manager=None,
+        database=None,
+        lead_manager=None
+    ) -> None:
+        """
+        Initialize tool executor with service dependencies.
+        
+        Args:
+            appointment_manager: AppointmentManager instance
+            database: DatabaseService instance
+            lead_manager: LeadManager instance
+        """
+        from tools.tool_executor import ToolExecutor
+        
+        self.tool_executor = ToolExecutor(
+            appointment_manager=appointment_manager,
+            database=database,
+            lead_manager=lead_manager
+        )
+    
+    def add_pending_tool_call(self, call_id: str, tool_name: str, arguments: str) -> None:
+        """Add a pending tool call to the queue."""
+        self.pending_tool_calls.append({
+            "call_id": call_id,
+            "tool_name": tool_name,
+            "arguments": arguments
+        })
+    
+    def clear_pending_tool_calls(self) -> None:
+        """Clear all pending tool calls."""
+        self.pending_tool_calls.clear()
 

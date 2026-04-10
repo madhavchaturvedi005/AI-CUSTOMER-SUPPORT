@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+OPENAI_REALTIME_MODEL = os.getenv('OPENAI_REALTIME_MODEL', 'gpt-4o-realtime-preview')
 
 print("=" * 60)
 print("DIAGNOSTIC CHECK")
@@ -27,7 +28,7 @@ else:
 print("\n2. Testing WebSocket connection to OpenAI Realtime API...")
 async def test_openai_connection():
     try:
-        uri = "wss://api.openai.com/v1/realtime?model=gpt-realtime&temperature=0.8"
+        uri = f"wss://api.openai.com/v1/realtime?model={OPENAI_REALTIME_MODEL}&temperature=0.8"
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "OpenAI-Beta": "realtime=v1"

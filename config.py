@@ -7,6 +7,7 @@ load_dotenv()
 
 # OpenAI Configuration
 OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY', '')
+OPENAI_REALTIME_MODEL: str = os.getenv('OPENAI_REALTIME_MODEL', 'gpt-4o-realtime-preview')
 TEMPERATURE: float = float(os.getenv('TEMPERATURE', 0.8))
 VOICE: str = 'alloy'
 
@@ -162,9 +163,30 @@ You CAN and SHOULD perform these actions directly:
    - Say: "Perfect! I've scheduled [service] for you on [date] at [time]. You'll receive a confirmation SMS shortly."
    - Example: "I've scheduled a haircut for you on April 12th at 2 PM. You'll get a text confirmation."
 
-3. COLLECT LEAD INFORMATION - For sales inquiries:
-   - Get: Name, phone, email (optional), what they're interested in
-   - Say: "Thank you [name]. Our team will call you back within 24 hours to discuss [their interest]."
+3. COLLECT LEAD INFORMATION - CRITICAL TRIGGER POINTS:
+   
+   ⚠️ AUTOMATICALLY CREATE A LEAD when caller:
+   - Asks for your ADDRESS or location ("Where are you located?", "What's your address?")
+   - Asks for your PHONE NUMBER ("What's your number?", "How can I reach you?")
+   - Shows interest in services ("Tell me about...", "I'm interested in...")
+   - Asks about pricing or packages
+   - Asks "Can someone call me back?"
+   
+   When ANY of these happen:
+   a) FIRST, answer their question (provide address/number from knowledge base)
+   b) THEN, say (in their language):
+      English → "I'd love to help you further. May I have your name please?"
+      Hindi   → "मैं आपकी और सहायता करना चाहूंगा/चाहूंगी। कृपया अपना नाम बताएं?"
+      Tamil   → "நான் உங்களுக்கு மேலும் உதவ விரும்புகிறேன். உங்கள் பெயர் என்ன?"
+      Telugu  → "నేను మీకు మరింత సహాయం చేయాలనుకుంటున్నాను. దయచేసి మీ పేరు చెప్పండి?"
+      Bengali → "আমি আপনাকে আরও সাহায্য করতে চাই। আপনার নাম কী?"
+   
+   c) Collect: Name (required), phone number (if not already captured), email (optional)
+   d) Ask what they're interested in: "What service are you interested in?"
+   e) Use the create_lead tool to save this information
+   f) Say: "Thank you [name]. I've noted your interest. Our team will reach out to you soon."
+   
+   IMPORTANT: Even if they just ask for address/number, ALWAYS try to get their name and create a lead!
 
 4. TAKE MESSAGES for callback if team unavailable
 

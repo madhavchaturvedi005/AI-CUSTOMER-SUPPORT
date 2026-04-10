@@ -3,11 +3,13 @@
 import json
 import base64
 import asyncio
-from typing import Any
+from typing import Any, Dict
 from datetime import datetime, timezone
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 import websockets
+
+from event_broadcaster import broadcaster
 
 from config import LOG_EVENT_TYPES, SHOW_TIMING_MATH
 from session import SessionState
@@ -49,10 +51,43 @@ async def receive_from_twilio(
                 else:
                     print(f"   ⚠️  No callSid in start event! Data: {data['start']}")
                 state.reset_on_stream_start(stream_sid)
-                # Store call_sid in state for later use
-                if call_sid and state.call_manager:
+                
+                # ALWAYS store call_sid in state - this is the ground truth from Twilio
+                if call_sid:
                     state.call_sid = call_sid
                     print(f"   ✅ Stored call_sid in state: {call_sid}")
+                    
+                    # Broadcast call_start event
+                    asyncio.create_task(broadcaster.publish("call_start", {
+                        "call_sid": state.call_sid or "",
+                        "stream_sid": stream_sid,
+                        "caller_phone": getattr(state, 'caller_phone', 'unknown')
+                    }))
+                    
+                    # Try to link with call_manager and create call if it doesn't exist
+                    if state.call_manager:
+                        print(f"   ✅ call_manager is available for call tracking")
+                        
+                        # Check if call already exists
+                        try:
+                            existing_call = await state.call_manager.get_call_context(call_sid)
+                            if not existing_call:
+                                print(f"   ⚠️  Call not in cache, creating now...")
+                                # Create the call since /incoming-call wasn't hit
+                                context = await state.call_manager.initiate_call(
+                                    call_sid=call_sid,
+                                    caller_phone="unknown",  # Will be updated from transcript
+                                    direction="inbound"
+                                )
+                                print(f"   ✅ Call created: {context.call_id}")
+                            else:
+                                print(f"   ✅ Call already exists: {existing_call.call_id}")
+                        except Exception as e:
+                            print(f"   ⚠️  Error checking/creating call: {e}")
+                    else:
+                        print(f"   ⚠️  call_manager not available (call won't be tracked)")
+                else:
+                    print(f"   ❌ No call_sid to store!")
             elif data['event'] == 'mark':
                 if state.mark_queue:
                     state.mark_queue.pop(0)
@@ -140,6 +175,15 @@ async def send_to_twilio(
                     )
                     print(f"💬 {speaker}: {text[:60]}...")
                     
+                    # Broadcast transcript event
+                    asyncio.create_task(broadcaster.publish("transcript", {
+                        "call_sid": state.call_sid or state.stream_sid,
+                        "speaker": speaker,
+                        "text": text,
+                        "language": getattr(state, 'detected_language', 'unknown'),
+                        "timestamp_ms": state.latest_media_timestamp
+                    }))
+                    
                     # Check for appointment booking (assistant responses only)
                     # NOTE: Appointment booking is now handled by AI conversation analysis
                     # at the end of the call in call_manager.complete_call()
@@ -155,6 +199,13 @@ async def send_to_twilio(
                             )
                             if detected_lang and confidence >= 0.8:
                                 print(f"🌍 Language detected: {state.language_manager.get_language_name(detected_lang)} (confidence: {confidence:.2f})")
+                                
+                                # Broadcast language detection event
+                                asyncio.create_task(broadcaster.publish("call_update", {
+                                    "call_sid": state.call_sid,
+                                    "language": detected_lang,
+                                    "language_confidence": round(confidence, 2)
+                                }))
                     
                     # Intent detection (after caller speaks)
                     if speaker == "caller" and state.intent_detector:
@@ -171,6 +222,15 @@ async def send_to_twilio(
                                 if intent != Intent.UNKNOWN:
                                     print(f"🎯 Intent detected: {intent.value} (confidence: {conf:.2f})")
                                     
+                                    # Broadcast call_update event with intent
+                                    asyncio.create_task(broadcaster.publish("call_update", {
+                                        "call_sid": state.call_sid,
+                                        "intent": intent.value,
+                                        "intent_confidence": round(conf, 2),
+                                        "language": getattr(state, 'detected_language', 'unknown'),
+                                        "lead_score": getattr(state, 'lead_score', 0)
+                                    }))
+                                    
                                     # Check routing decision
                                     if state.call_router:
                                         routing_decision = await state.call_router.route_call(
@@ -186,6 +246,10 @@ async def send_to_twilio(
                                     print(f"❓ Clarification needed: {clarification[:60]}...")
                         except Exception as e:
                             print(f"⚠️  Error in intent detection: {e}")
+            
+            # Handle tool calls
+            if response.get('type') == 'response.function_call_arguments.done':
+                await handle_tool_call(response, openai_ws, state)
             
             # Handle greeting completion event
             if response.get('type') == 'response.done':
@@ -259,3 +323,118 @@ async def handle_speech_started_event(
         state.clear_interruption_state()
         
         print("✅ Interruption handled - context preserved, ready for caller input")
+
+
+async def handle_tool_call(
+    response: Dict[str, Any],
+    openai_ws: websockets.WebSocketClientProtocol,
+    state: SessionState
+) -> None:
+    """
+    Handle tool call from OpenAI Realtime API.
+    
+    This function:
+    1. Extracts tool name and arguments from OpenAI response
+    2. Executes the tool using ToolExecutor
+    3. Sends the result back to OpenAI
+    4. Triggers response generation
+    
+    Args:
+        response: Tool call response from OpenAI
+        openai_ws: WebSocket connection to OpenAI
+        state: Session state object
+    """
+    call_id = response.get('call_id')
+    tool_name = response.get('name')
+    arguments_str = response.get('arguments', '{}')
+    
+    print(f"\n{'='*60}")
+    print(f"🔧 TOOL CALL RECEIVED")
+    print(f"{'='*60}")
+    print(f"Tool: {tool_name}")
+    print(f"Call ID: {call_id}")
+    print(f"Arguments: {arguments_str}")
+    print(f"{'='*60}\n")
+    
+    # Parse arguments
+    try:
+        arguments = json.loads(arguments_str)
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse tool arguments: {e}")
+        arguments = {}
+    
+    # Get call context for tool execution
+    call_context = None
+    if state.call_manager and state.call_sid:
+        try:
+            context = await state.call_manager.get_call_context(state.call_sid)
+            if context:
+                call_context = {
+                    "call_id": context.call_id,
+                    "caller_phone": context.caller_phone,
+                    "caller_name": context.caller_name,
+                    "language": context.language.value if context.language else "en"
+                }
+                print(f"📋 Call context: {call_context}")
+        except Exception as e:
+            print(f"⚠️  Error getting call context: {e}")
+    
+    # Execute tool
+    result = {"success": False, "error": "Tool executor not initialized"}
+    
+    if state.tool_executor:
+        try:
+            result = await state.tool_executor.execute_tool(
+                tool_name=tool_name,
+                arguments=arguments,
+                call_context=call_context
+            )
+            
+            print(f"\n{'='*60}")
+            print(f"✅ TOOL EXECUTION RESULT")
+            print(f"{'='*60}")
+            print(f"Success: {result.get('success')}")
+            print(f"Result: {json.dumps(result.get('result', {}), indent=2)}")
+            print(f"{'='*60}\n")
+            
+            # Broadcast tool execution event
+            asyncio.create_task(broadcaster.publish("tool_execution", {
+                "call_sid": state.call_sid or state.stream_sid,
+                "tool_name": tool_name,
+                "success": result.get('success'),
+                "result": result.get('result', {})
+            }))
+            
+        except Exception as e:
+            print(f"❌ Tool execution error: {e}")
+            import traceback
+            traceback.print_exc()
+            result = {
+                "success": False,
+                "error": str(e)
+            }
+    else:
+        print("⚠️  Tool executor not initialized in session state")
+    
+    # Send result back to OpenAI
+    try:
+        tool_response = {
+            "type": "conversation.item.create",
+            "item": {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": json.dumps(result)
+            }
+        }
+        
+        await openai_ws.send(json.dumps(tool_response))
+        print(f"📤 Sent tool result back to OpenAI")
+        
+        # Trigger response generation so AI can respond with the result
+        await openai_ws.send(json.dumps({"type": "response.create"}))
+        print(f"🎤 Triggered AI response generation")
+        
+    except Exception as e:
+        print(f"❌ Error sending tool response to OpenAI: {e}")
+        import traceback
+        traceback.print_exc()

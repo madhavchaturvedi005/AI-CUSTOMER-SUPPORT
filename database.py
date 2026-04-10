@@ -113,6 +113,9 @@ class DatabaseService:
         """
         
         async with self.pool.acquire() as conn:
+            # Convert timezone-aware datetime to naive UTC for TIMESTAMP column
+            started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            
             call_id = await conn.fetchval(
                 query,
                 call_sid,
@@ -122,7 +125,7 @@ class DatabaseService:
                 caller_name,
                 language,
                 json.dumps(metadata or {}),
-                datetime.now(timezone.utc)
+                started_at
             )
             print(f"✅ Call created in database: {call_id} (SID: {call_sid})")
             return str(call_id)
@@ -146,10 +149,13 @@ class DatabaseService:
         Returns:
             True if updated successfully
         """
-        # Ensure ended_at is timezone-aware if provided
-        if ended_at and ended_at.tzinfo is None:
-            from datetime import timezone
-            ended_at = ended_at.replace(tzinfo=timezone.utc)
+        # Ensure ended_at is naive UTC for TIMESTAMP column
+        if ended_at and ended_at.tzinfo is not None:
+            # Convert timezone-aware to naive UTC
+            ended_at = ended_at.astimezone(timezone.utc).replace(tzinfo=None)
+        elif ended_at and ended_at.tzinfo is None:
+            # Already naive, assume it's UTC
+            pass
         
         query = """
             UPDATE calls
@@ -498,11 +504,14 @@ class DatabaseService:
         """
         
         async with self.pool.acquire() as conn:
+            # Convert timezone-aware datetime to naive UTC for TIMESTAMP column
+            created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            
             lead_id = await conn.fetchval(
                 query,
                 call_id, name, phone, email, inquiry_details,
                 budget_indication, timeline, decision_authority,
-                lead_score, source, datetime.now(timezone.utc)
+                lead_score, source, created_at
             )
             return str(lead_id)
     

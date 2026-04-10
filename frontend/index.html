@@ -8,6 +8,163 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Live transcript styling */
+        .transcript-container {
+            font-family: 'Courier New', monospace;
+        }
+        .transcript-row {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items-start;
+            gap: 8px;
+        }
+        .transcript-customer, .transcript-caller {
+            background-color: #EFF6FF;
+            border-left: 3px solid #3B82F6;
+        }
+        .transcript-assistant {
+            background-color: #F0FDF4;
+            border-left: 3px solid #10B981;
+        }
+        .speaker-label {
+            font-weight: 600;
+            min-width: 60px;
+            font-size: 0.875rem;
+        }
+        .transcript-customer .speaker-label, .transcript-caller .speaker-label {
+            color: #1E40AF;
+        }
+        .transcript-assistant .speaker-label {
+            color: #047857;
+        }
+        .transcript-text {
+            flex: 1;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        .transcript-lang {
+            font-size: 0.75rem;
+            color: #6B7280;
+        }
+        
+        /* Notification styles */
+        .notification {
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            max-width: 400px;
+            transition: opacity 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .notification-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .notification-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .notification-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        
+        .notification-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .notification-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .notification-message {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .notification-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 20px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        
+        .notification-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* Activity feed styles */
+        .activity-item {
+            padding: 10px 12px;
+            border-left: 3px solid #e5e7eb;
+            margin-bottom: 8px;
+            background: #f9fafb;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .activity-time {
+            color: #6b7280;
+            font-size: 11px;
+            margin-right: 8px;
+        }
+        
+        .activity-message {
+            color: #374151;
+        }
+        
+        .activity-availability {
+            border-left-color: #3b82f6;
+        }
+        
+        .activity-slots {
+            border-left-color: #10b981;
+        }
+            text-transform: uppercase;
+        }
+        .live-banner {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .8;
+            }
+        }
+    </style>
 </head>
 
 <body class="bg-gray-50">
@@ -32,6 +189,20 @@
 
     <!-- Main Container -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Live Call Banner -->
+        <div id="active-call-banner" style="display:none" 
+            class="live-banner bg-red-500 text-white px-6 py-3 rounded-lg mb-6 flex items-center justify-between shadow-lg animate-pulse">
+            <div class="flex items-center">
+                <i class="fas fa-phone-volume mr-3 text-xl"></i>
+                <span class="font-semibold">Live call active</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm">Intent: <span id="live-intent" class="font-bold">—</span></span>
+                <span class="text-sm">Language: <span id="live-language" class="font-bold">—</span></span>
+                <span class="text-sm">Score: <span id="live-lead-score" class="font-bold">—</span></span>
+            </div>
+        </div>
+        
         <!-- Tab Navigation -->
         <div class="mb-6 border-b border-gray-200">
             <nav class="-mb-px flex space-x-8">
@@ -125,10 +296,24 @@
             </div>
 
             <!-- Recent Activity -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
-                <div id="recent-activity" class="space-y-3">
-                    <!-- Activity items will be inserted here -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Recent Activity -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                    <div id="recent-activity" class="space-y-3">
+                        <!-- Activity items will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Live Transcript -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-comments text-blue-600 mr-2"></i>
+                        Live Transcript
+                    </h3>
+                    <div id="live-transcript" class="transcript-container space-y-2 max-h-96 overflow-y-auto">
+                        <p class="text-sm text-gray-500 italic">Waiting for active call...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -431,6 +616,7 @@
     </div>
 
     <script src="dashboard.js"></script>
+    <script src="live_events.js"></script>
 </body>
 
 </html>

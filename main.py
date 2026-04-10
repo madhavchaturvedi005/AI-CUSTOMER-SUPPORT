@@ -5,7 +5,7 @@ import os
 import json
 import websockets
 from fastapi import FastAPI, WebSocket, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from twilio.twiml.voice_response import VoiceResponse, Connect
@@ -18,7 +18,7 @@ from uuid import uuid4
 from config import (
     OPENAI_API_KEY, PORT, TEMPERATURE, SYSTEM_MESSAGE,
     BUSINESS_NAME, BUSINESS_TYPE, AGENT_NAME, COMPANY_DESCRIPTION,
-    LANGUAGE_NAMES, SUPPORTED_LANGUAGES, get_system_message
+    LANGUAGE_NAMES, SUPPORTED_LANGUAGES, get_system_message, OPENAI_REALTIME_MODEL
 )
 from session import SessionState
 from handlers import receive_from_twilio, send_to_twilio
@@ -32,6 +32,7 @@ from call_router import CallRouter, RoutingRule
 from models import Intent, Language
 from database import DatabaseService
 from redis_service import RedisService
+from event_broadcaster import broadcaster
 
 # Pydantic models for API requests
 class AppointmentRequest(BaseModel):
@@ -65,12 +66,13 @@ language_manager = None
 call_router = None
 database_service = None
 redis_service = None
+appointment_manager = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on application startup."""
-    global call_manager, intent_detector, language_manager, call_router, database_service, redis_service
+    global call_manager, intent_detector, language_manager, call_router, database_service, redis_service, appointment_manager
     
     print("🚀 Initializing AI Voice Automation services...")
     
@@ -173,11 +175,32 @@ async def startup_event():
     )
     call_router.add_routing_rule(support_rule)
     
+    # Initialize AppointmentManager for tool calling with business hours
+    from appointment_manager import AppointmentManager
+    
+    # Define business hours (Monday-Friday 9 AM - 5 PM, Saturday 10 AM - 2 PM)
+    business_hours = {
+        "monday": [(9, 17)],      # 9 AM - 5 PM
+        "tuesday": [(9, 17)],     # 9 AM - 5 PM
+        "wednesday": [(9, 17)],   # 9 AM - 5 PM
+        "thursday": [(9, 17)],    # 9 AM - 5 PM
+        "friday": [(9, 17)],      # 9 AM - 5 PM
+        "saturday": [(10, 14)],   # 10 AM - 2 PM
+        "sunday": []              # Closed
+    }
+    
+    appointment_manager = AppointmentManager(
+        database=database_service,
+        business_hours=business_hours,
+        slot_duration_minutes=30  # 30-minute slots
+    )
+    
     print("✅ AI Voice Automation services initialized!")
     print("   • CallManager: Ready")
     print("   • IntentDetector: Ready")
     print("   • LanguageManager: Ready (5 languages)")
     print("   • CallRouter: Ready (2 routing rules)")
+    print("   • AppointmentManager: Ready (tool calling enabled)")
     print(f"   • Database: {'PostgreSQL' if use_real_db else 'Mock'}")
     print(f"   • Cache: {'Redis' if use_real_redis else 'Mock'}")
 
@@ -747,6 +770,55 @@ def generate_call_insights(call_data: dict, conversation: list) -> dict:
         insights["action_items"].append("Send product information")
     
     return insights
+
+
+@app.get("/api/events/live")
+async def live_events_stream():
+    """SSE stream of all live call events for the dashboard."""
+    q = broadcaster.subscribe_global()
+    
+    async def event_generator():
+        # Send a heartbeat immediately so the connection opens cleanly
+        yield "data: {\"type\": \"connected\", \"message\": \"live feed ready\"}\n\n"
+        try:
+            async for chunk in broadcaster.stream(q):
+                yield chunk
+        finally:
+            broadcaster.unsubscribe(q)
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
+
+
+@app.get("/api/events/call/{call_sid}")
+async def call_events_stream(call_sid: str):
+    """SSE stream for a specific call — used by the call detail page."""
+    q = broadcaster.subscribe_call(call_sid)
+    
+    async def event_generator():
+        yield f"data: {{\"type\": \"connected\", \"call_sid\": \"{call_sid}\"}}\n\n"
+        try:
+            async for chunk in broadcaster.stream(q):
+                yield chunk
+        finally:
+            broadcaster.unsubscribe(q, call_sid)
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 @app.get("/api/calls")
@@ -1738,44 +1810,49 @@ async def handle_media_stream(websocket: WebSocket) -> None:
     call_sid_from_query = websocket.query_params.get('call_sid')
     if call_sid_from_query:
         print(f"📞 Call SID from query: {call_sid_from_query}")
-        
-        # FALLBACK: If call doesn't exist in database, create it now
-        # This handles cases where Twilio calls /media-stream directly
-        if call_manager:
-            print(f"🔍 Checking if call exists in cache/database...")
-            try:
-                # Check if call exists
-                existing_call = await call_manager.get_call_context(call_sid_from_query)
-                print(f"   Cache check result: {existing_call is not None}")
+    else:
+        print(f"⚠️  No call_sid in query parameters!")
+        print(f"   This means Twilio is NOT calling /incoming-call first")
+        print(f"   Query params: {dict(websocket.query_params)}")
+        print(f"   Will wait for call_sid from Twilio start event...")
+    
+    # FALLBACK: If call doesn't exist in database, create it now
+    # This handles cases where Twilio calls /media-stream directly
+    if call_sid_from_query and call_manager:
+        print(f"🔍 Checking if call exists in cache/database...")
+        try:
+            # Check if call exists
+            existing_call = await call_manager.get_call_context(call_sid_from_query)
+            print(f"   Cache check result: {existing_call is not None}")
+            
+            if not existing_call:
+                # Try to get from database
+                call_record = await database_service.get_call_by_sid(call_sid_from_query) if database_service else None
+                print(f"   Database check result: {call_record is not None}")
                 
-                if not existing_call:
-                    # Try to get from database
-                    call_record = await database_service.get_call_by_sid(call_sid_from_query) if database_service else None
-                    print(f"   Database check result: {call_record is not None}")
-                    
-                    if not call_record:
-                        print(f"⚠️  Call not found, creating it now (Twilio bypassed /incoming-call)")
-                        # Extract caller phone from Twilio metadata if available
-                        # For now, use a placeholder - Twilio will send it in the first message
-                        context = await call_manager.initiate_call(
-                            call_sid=call_sid_from_query,
-                            caller_phone="unknown",  # Will be updated from Twilio messages
-                            direction="inbound"
-                        )
-                        print(f"✅ Call created in WebSocket handler: {context.call_id}")
-                        print(f"   Verifying Redis storage...")
-                        verify = await call_manager.get_call_context(call_sid_from_query)
-                        print(f"   Redis verification: {verify is not None}")
-                    else:
-                        print(f"✅ Call found in database: {call_record.get('id')}")
+                if not call_record:
+                    print(f"⚠️  Call not found, creating it now (Twilio bypassed /incoming-call)")
+                    # Extract caller phone from Twilio metadata if available
+                    # For now, use a placeholder - Twilio will send it in the first message
+                    context = await call_manager.initiate_call(
+                        call_sid=call_sid_from_query,
+                        caller_phone="unknown",  # Will be updated from Twilio messages
+                        direction="inbound"
+                    )
+                    print(f"✅ Call created in WebSocket handler: {context.call_id}")
+                    print(f"   Verifying Redis storage...")
+                    verify = await call_manager.get_call_context(call_sid_from_query)
+                    print(f"   Redis verification: {verify is not None}")
                 else:
-                    print(f"✅ Call found in cache: {existing_call.call_id}")
-            except Exception as e:
-                print(f"⚠️  Error checking/creating call: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print(f"❌ call_manager is None! Cannot create call.")
+                    print(f"✅ Call found in database: {call_record.get('id')}")
+            else:
+                print(f"✅ Call found in cache: {existing_call.call_id}")
+        except Exception as e:
+            print(f"⚠️  Error checking/creating call: {e}")
+            import traceback
+            traceback.print_exc()
+    elif call_sid_from_query:
+        print(f"❌ call_manager is None! Cannot create call.")
 
     ssl_context = create_ssl_context()
     call_start_time = datetime.now(timezone.utc)
@@ -1823,18 +1900,31 @@ async def handle_media_stream(websocket: WebSocket) -> None:
     
     try:
         async with websockets.connect(
-            f"wss://api.openai.com/v1/realtime?model=gpt-realtime&temperature={TEMPERATURE}",
+            f"wss://api.openai.com/v1/realtime?model={OPENAI_REALTIME_MODEL}&temperature={TEMPERATURE}",
             additional_headers={
                 "Authorization": f"Bearer {OPENAI_API_KEY}"
             },
             ssl=ssl_context
         ) as openai_ws:
-            # Initialize session with custom instructions
+            # Initialize session with custom instructions and tools
+            from tools.appointment_tools import ALL_TOOLS
+            
+            # Convert tool definitions to dict format for OpenAI
+            tools_config = [
+                {
+                    "type": tool.type,
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters
+                }
+                for tool in ALL_TOOLS
+            ]
+            
             session_update = {
                 "type": "session.update",
                 "session": {
                     "type": "realtime",
-                    "model": "gpt-realtime",
+                    "model": OPENAI_REALTIME_MODEL,
                     "output_modalities": ["audio"],
                     "audio": {
                         "input": {
@@ -1847,9 +1937,14 @@ async def handle_media_stream(websocket: WebSocket) -> None:
                         }
                     },
                     "instructions": custom_instructions,
+                    # Add tools for function calling
+                    "tools": tools_config,
+                    "tool_choice": "auto"  # Let AI decide when to use tools
                 }
             }
-            print('📡 Sending session update with multilingual instructions')
+            print(f'📡 Sending session update with multilingual instructions and {len(tools_config)} tools')
+            for tool in tools_config:
+                print(f'   • {tool["name"]}: {tool["description"][:60]}...')
             await openai_ws.send(json.dumps(session_update))
 
             # Initialize session state with AI features
@@ -1866,6 +1961,28 @@ async def handle_media_stream(websocket: WebSocket) -> None:
             if call_sid_from_query:
                 state.call_sid = call_sid_from_query
                 print(f"✅ Call SID set in state: {call_sid_from_query}")
+            
+            # Initialize tool executor for function calling
+            if appointment_manager and database_service:
+                try:
+                    # Import lead_manager if available
+                    lead_mgr = None
+                    try:
+                        from lead_manager import LeadManager
+                        lead_mgr = LeadManager(database=database_service)
+                    except:
+                        pass
+                    
+                    state.initialize_tool_executor(
+                        appointment_manager=appointment_manager,
+                        database=database_service,
+                        lead_manager=lead_mgr
+                    )
+                    print("✅ Tool executor initialized with appointment and lead management")
+                except Exception as tool_init_error:
+                    print(f"⚠️  Error initializing tool executor: {tool_init_error}")
+            else:
+                print("⚠️  Tool executor not initialized (missing dependencies)")
             
             print("✅ Session initialized with AI features and custom configuration")
             
@@ -1908,6 +2025,14 @@ async def handle_media_stream(websocket: WebSocket) -> None:
                 print(f"📊 Call summary: language={detected_lang}, sid={state.call_sid}")
                 
                 print(f"📞 Call ended, completing call: {state.call_sid}")
+                
+                # Broadcast call_end event
+                asyncio.create_task(broadcaster.publish("call_end", {
+                    "call_sid": state.call_sid,
+                    "language": getattr(state, 'detected_language', 'unknown'),
+                    "duration_ms": int((datetime.now(timezone.utc) - state.call_start_time).total_seconds() * 1000) if state.call_start_time else 0
+                }))
+                
                 try:
                     await call_manager.complete_call(state.call_sid)
                 except ValueError as e:

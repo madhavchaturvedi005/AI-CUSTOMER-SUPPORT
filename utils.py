@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import WebSocket
 import websockets
 
-from config import OPENAI_API_KEY, SYSTEM_MESSAGE, VOICE
+from config import OPENAI_API_KEY, SYSTEM_MESSAGE, VOICE, OPENAI_REALTIME_MODEL
 
 
 def create_ssl_context() -> ssl.SSLContext:
@@ -19,16 +19,29 @@ def create_ssl_context() -> ssl.SSLContext:
 
 async def initialize_session(openai_ws: websockets.WebSocketClientProtocol) -> None:
     """
-    Initialize OpenAI Realtime API session with configuration.
+    Initialize OpenAI Realtime API session with configuration and tools.
     
     Args:
         openai_ws: WebSocket connection to OpenAI
     """
+    from tools.appointment_tools import ALL_TOOLS
+    
+    # Convert tool definitions to dict format for OpenAI
+    tools_config = [
+        {
+            "type": tool.type,
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.parameters
+        }
+        for tool in ALL_TOOLS
+    ]
+    
     session_update = {
         "type": "session.update",
         "session": {
             "type": "realtime",
-            "model": "gpt-realtime",
+            "model": OPENAI_REALTIME_MODEL,
             "output_modalities": ["audio"],
             "audio": {
                 "input": {
@@ -41,9 +54,16 @@ async def initialize_session(openai_ws: websockets.WebSocketClientProtocol) -> N
                 }
             },
             "instructions": SYSTEM_MESSAGE,
+            # Add tools for function calling
+            "tools": tools_config,
+            "tool_choice": "auto"  # Let AI decide when to use tools
         }
     }
-    print('Sending session update:', json.dumps(session_update))
+    
+    print(f'📋 Sending session update with {len(tools_config)} tools:')
+    for tool in tools_config:
+        print(f'   • {tool["name"]}: {tool["description"][:60]}...')
+    
     await openai_ws.send(json.dumps(session_update))
 
 

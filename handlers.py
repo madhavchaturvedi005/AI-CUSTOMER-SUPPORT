@@ -140,6 +140,10 @@ async def send_to_twilio(
                     )
                     print(f"💬 {speaker}: {text[:60]}...")
                     
+                    # Check for appointment booking (assistant responses only)
+                    # NOTE: Appointment booking is now handled by AI conversation analysis
+                    # at the end of the call in call_manager.complete_call()
+                    
                     # Language detection (first 10 seconds)
                     if state.call_start_time and state.language_manager:
                         elapsed_ms = int((datetime.now(timezone.utc) - state.call_start_time).total_seconds() * 1000)
@@ -155,7 +159,7 @@ async def send_to_twilio(
                     # Intent detection (after caller speaks)
                     if speaker == "caller" and state.intent_detector:
                         try:
-                            context = await state.call_manager.get_call_context(state.stream_sid)
+                            context = await state.call_manager.get_call_context(state.call_sid)
                             if context:
                                 intent, conf, clarification = await state.call_manager.handle_intent_with_clarification(
                                     state.stream_sid,
@@ -187,9 +191,9 @@ async def send_to_twilio(
             if response.get('type') == 'response.done':
                 print("✅ Response completed")
                 # Answer the call in our system
-                if state.call_manager and state.stream_sid:
+                if state.call_manager and state.call_sid:
                     try:
-                        await state.call_manager.answer_call(state.stream_sid)
+                        await state.call_manager.answer_call(state.call_sid)
                     except Exception as e:
                         print(f"⚠️  Error answering call: {e}")
 

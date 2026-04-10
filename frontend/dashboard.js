@@ -1061,3 +1061,113 @@ function formatTimestamp(ms) {
 function viewLeadDetails(leadId) {
     alert(`View lead details: ${leadId}\n(Feature coming soon)`);
 }
+
+/**
+ * Open booking modal
+ */
+function openBookingModal() {
+    const modal = document.getElementById('bookingModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Set default datetime to tomorrow at 10 AM
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(10, 0, 0, 0);
+        const datetimeInput = document.getElementById('bDateTime');
+        if (datetimeInput) {
+            datetimeInput.value = tomorrow.toISOString().slice(0, 16);
+        }
+    }
+}
+
+/**
+ * Close booking modal
+ */
+function closeBookingModal() {
+    const modal = document.getElementById('bookingModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Reset form
+        const form = document.getElementById('booking-form');
+        if (form) {
+            form.reset();
+        }
+    }
+}
+
+/**
+ * Submit booking form
+ */
+async function submitBooking() {
+    try {
+        // Get form values
+        const customerName = document.getElementById('bName').value.trim();
+        const customerPhone = document.getElementById('bPhone').value.trim();
+        const serviceType = document.getElementById('bService').value.trim();
+        const appointmentDatetime = document.getElementById('bDateTime').value;
+        const notes = document.getElementById('bNotes').value.trim();
+        
+        // Validate required fields
+        if (!customerName || !customerPhone || !serviceType || !appointmentDatetime) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        // Convert datetime-local to ISO string
+        const appointmentDate = new Date(appointmentDatetime);
+        const isoDatetime = appointmentDate.toISOString();
+        
+        // Prepare request body
+        const requestBody = {
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            service_type: serviceType,
+            appointment_datetime: isoDatetime,
+            duration_minutes: 30,
+            notes: notes || null,
+            call_id: null
+        };
+        
+        // Send POST request
+        const response = await fetch(`${API_BASE}/api/appointments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message || 'Appointment booked successfully!');
+            closeBookingModal();
+            refreshAppointments();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to book appointment'));
+        }
+        
+    } catch (error) {
+        console.error('Error submitting booking:', error);
+        alert('Network error: Failed to book appointment. Please try again.');
+    }
+}
+
+// Add form submit handler for booking form
+document.addEventListener('DOMContentLoaded', () => {
+    const bookingForm = document.getElementById('booking-form');
+    if (bookingForm) {
+        bookingForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            submitBooking();
+        });
+    }
+});
+
+// Auto-refresh appointments every 15 seconds
+setInterval(() => {
+    const appointmentsTab = document.getElementById('content-appointments');
+    if (appointmentsTab && !appointmentsTab.classList.contains('hidden')) {
+        refreshAppointments();
+    }
+}, 15000);

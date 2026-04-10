@@ -12,6 +12,8 @@ from twilio.twiml.voice_response import VoiceResponse, Connect
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from unittest.mock import AsyncMock
+from pydantic import BaseModel
+from uuid import uuid4
 
 from config import (
     OPENAI_API_KEY, PORT, TEMPERATURE, SYSTEM_MESSAGE,
@@ -30,6 +32,17 @@ from call_router import CallRouter, RoutingRule
 from models import Intent, Language
 from database import DatabaseService
 from redis_service import RedisService
+
+# Pydantic models for API requests
+class AppointmentRequest(BaseModel):
+    """Request model for creating appointments."""
+    customer_name: str
+    customer_phone: str
+    service_type: str
+    appointment_datetime: str  # ISO format like "2026-04-12T14:00:00Z"
+    duration_minutes: int = 30
+    notes: Optional[str] = None
+    call_id: Optional[str] = None
 
 app = FastAPI()
 
@@ -104,12 +117,26 @@ async def startup_event():
         print("   → Using mock database")
     
     if not use_real_redis:
-        from unittest.mock import AsyncMock
-        redis_service = AsyncMock(spec=RedisService)
-        redis_service.set_session_state = AsyncMock()
-        redis_service.get_session_state = AsyncMock(return_value=None)
-        redis_service.add_caller_history = AsyncMock()
-        print("   → Using mock Redis")
+        # Use real in-memory storage instead of AsyncMock
+        # so call contexts are actually saved and retrieved
+        _session_store = {}  # in-memory dict that persists during runtime
+        
+        class InMemoryRedis:
+            async def set_session_state(self, call_sid: str, session_data: dict, ttl_seconds: int = 3600):
+                _session_store[call_sid] = session_data
+                return True
+            
+            async def get_session_state(self, call_sid: str):
+                return _session_store.get(call_sid, None)
+            
+            async def add_caller_history(self, caller_phone: str, call_id: str):
+                pass  # no-op for mock
+            
+            async def get_caller_history(self, caller_phone: str, limit: int = 10):
+                return []
+        
+        redis_service = InMemoryRedis()
+        print("   → Using in-memory Redis (sessions will persist during runtime)")
     
     # Initialize AI services
     language_manager = LanguageManager(
@@ -156,10 +183,11 @@ async def startup_event():
 
 
 @app.get("/", response_class=JSONResponse)
-async def index_page() -> dict[str, str]:
+async def index_page():
     """Return a simple status message for the root endpoint."""
     return {
         "message": "AI Voice Automation System is running!",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "features": {
             "call_management": "enabled",
             "intent_detection": "enabled",
@@ -169,6 +197,17 @@ async def index_page() -> dict[str, str]:
         },
         "status": "ready"
     }
+
+
+@app.get("/health")
+async def health_check() -> JSONResponse:
+    """Health check endpoint for monitoring."""
+    return JSONResponse(content={
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "database": "connected" if database_service and not isinstance(database_service, AsyncMock) else "mock",
+        "redis": "connected" if redis_service and not isinstance(redis_service, AsyncMock) else "mock"
+    })
 
 
 @app.api_route("/incoming-call", methods=["GET", "POST"])
@@ -188,12 +227,20 @@ async def handle_incoming_call(request: Request) -> HTMLResponse:
     Returns:
         HTMLResponse containing TwiML XML
     """
+    print("\n" + "="*60)
+    print("📞 /incoming-call endpoint HIT!")
+    print("="*60)
+    
     # Extract caller information from Twilio request
     form_data = await request.form()
     caller_phone = form_data.get("From", "unknown")
     call_sid = form_data.get("CallSid", "unknown")
     
     print(f"\n📞 Incoming call from {caller_phone} (SID: {call_sid})")
+    print(f"   Form data keys: {list(form_data.keys())}")
+    print(f"   call_manager exists: {call_manager is not None}")
+    print(f"   redis_service exists: {redis_service is not None}")
+    print(f"   database_service exists: {database_service is not None}")
     
     # Get custom greeting from configuration
     custom_greeting = None
@@ -218,12 +265,15 @@ async def handle_incoming_call(request: Request) -> HTMLResponse:
     # Initiate call in our system
     if call_manager:
         try:
+            print(f"🔄 Initiating call in system...")
             context = await call_manager.initiate_call(
                 call_sid=call_sid,
                 caller_phone=caller_phone,
                 direction="inbound"
             )
             print(f"✅ Call initiated in system: {context.call_id}")
+            print(f"   Call SID: {call_sid}")
+            print(f"   Caller: {caller_phone}")
             
             # Check for conversation history
             has_history = await call_manager.integrate_conversation_history(
@@ -237,6 +287,10 @@ async def handle_incoming_call(request: Request) -> HTMLResponse:
                 print(f"   History: {summary}")
         except Exception as e:
             print(f"⚠️  Error initiating call: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"❌ call_manager is None! Call will not be tracked.")
     
     response = VoiceResponse()
     
@@ -962,6 +1016,89 @@ async def get_appointments() -> JSONResponse:
     return JSONResponse(content={"appointments": appointments})
 
 
+@app.post("/api/appointments")
+async def create_appointment(appointment: AppointmentRequest) -> JSONResponse:
+    """
+    Create a new appointment.
+    
+    Args:
+        appointment: AppointmentRequest with customer details and appointment time
+        
+    Returns:
+        Success confirmation with appointment ID
+    """
+    try:
+        # Parse appointment_datetime from ISO string to timezone-aware datetime
+        try:
+            appt_dt = datetime.fromisoformat(appointment.appointment_datetime.replace('Z', '+00:00'))
+            # Ensure it's timezone-aware
+            if appt_dt.tzinfo is None:
+                appt_dt = appt_dt.replace(tzinfo=timezone.utc)
+        except Exception as parse_error:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": f"Invalid datetime format: {parse_error}"}
+            )
+        
+        # Instantiate AppointmentManager
+        from appointment_manager import AppointmentManager
+        manager = AppointmentManager(database=database_service)
+        
+        # Validate call_id - must be None or a valid UUID
+        call_id_to_use = None
+        if appointment.call_id:
+            # Try to validate it's a UUID
+            try:
+                from uuid import UUID
+                UUID(appointment.call_id)  # This will raise ValueError if invalid
+                call_id_to_use = appointment.call_id
+            except (ValueError, AttributeError):
+                # Invalid UUID, use None
+                call_id_to_use = None
+        
+        # Book the appointment
+        appointment_data, appointment_id = await manager.book_appointment(
+            call_id=call_id_to_use,
+            customer_name=appointment.customer_name,
+            customer_phone=appointment.customer_phone,
+            appointment_datetime=appt_dt,
+            service_type=appointment.service_type,
+            notes=appointment.notes
+        )
+        
+        # Format success message
+        formatted_date = appt_dt.strftime("%B %d, %Y at %I:%M %p")
+        message = f"Appointment booked for {appointment.customer_name} on {formatted_date}"
+        
+        print(f"✅ Appointment created: {appointment_id}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "appointment_id": appointment_id,
+            "message": message
+        })
+        
+    except Exception as e:
+        print(f"❌ Error creating appointment: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Handle mock database gracefully
+        if isinstance(database_service, AsyncMock):
+            mock_id = f"mock-appt-{uuid4().hex[:8]}"
+            formatted_date = datetime.fromisoformat(appointment.appointment_datetime.replace('Z', '+00:00')).strftime("%B %d, %Y at %I:%M %p")
+            return JSONResponse(content={
+                "success": True,
+                "appointment_id": mock_id,
+                "message": f"Appointment booked for {appointment.customer_name} on {formatted_date} (mock mode)"
+            })
+        
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 @app.get("/api/config")
 async def get_config() -> JSONResponse:
     """
@@ -1493,6 +1630,91 @@ async def upload_documents(files: List[UploadFile] = File(...)) -> JSONResponse:
         )
 
 
+async def maybe_book_appointment(call_sid: str, caller_phone: str, transcript_text: str) -> None:
+    """
+    Check if the AI assistant confirmed an appointment booking and auto-save it.
+    
+    This is a fire-and-forget function that runs in the background during calls.
+    It detects booking confirmation phrases and extracts appointment details.
+    
+    Args:
+        call_sid: Twilio call SID
+        caller_phone: Caller's phone number
+        transcript_text: The AI assistant's response text
+    """
+    try:
+        # Check if transcript contains booking confirmation phrases
+        text_lower = transcript_text.lower()
+        booking_phrases = [
+            "i've scheduled",
+            "i've booked",
+            "booked for",
+            "appointment confirmed",
+            "scheduled for",
+            "appointment is set",
+            "i have booked"
+        ]
+        
+        if not any(phrase in text_lower for phrase in booking_phrases):
+            return  # Not a booking confirmation
+        
+        print(f"🔍 Detected appointment booking confirmation in call {call_sid}")
+        
+        # Get active call context
+        if not call_manager or not hasattr(call_manager, 'active_calls'):
+            print(f"   ⚠️  CallManager not available")
+            return
+        
+        context = call_manager.active_calls.get(call_sid)
+        if not context:
+            print(f"   ⚠️  Call context not found for {call_sid}")
+            return
+        
+        # Get conversation history
+        conversation_history = getattr(context, 'conversation_history', [])
+        if not conversation_history:
+            print(f"   ⚠️  No conversation history available")
+            return
+        
+        # Extract appointment info using AppointmentManager
+        from appointment_manager import AppointmentManager
+        manager = AppointmentManager(database=database_service)
+        
+        info = await manager.extract_appointment_info(conversation_history, caller_phone)
+        
+        if not info:
+            print(f"   ⚠️  Could not extract appointment info from conversation")
+            return
+        
+        # Get preferred datetime, default to tomorrow if not specified
+        appt_dt = info.get("preferred_datetime")
+        if not appt_dt:
+            appt_dt = datetime.now(timezone.utc) + timedelta(days=1)
+            appt_dt = appt_dt.replace(hour=10, minute=0, second=0, microsecond=0)  # Default to 10 AM
+        
+        # Ensure timezone-aware
+        if appt_dt.tzinfo is None:
+            appt_dt = appt_dt.replace(tzinfo=timezone.utc)
+        
+        # Book the appointment
+        appointment_data, appt_id = await manager.book_appointment(
+            call_id=context.call_id,
+            customer_name=info["customer_name"],
+            customer_phone=info["customer_phone"],
+            appointment_datetime=appt_dt,
+            service_type=info.get("service_type", "general"),
+            notes=None
+        )
+        
+        print(f"✅ Appointment auto-saved: {appt_id} for {info['customer_name']}")
+        
+    except Exception as e:
+        print(f"⚠️  Error in maybe_book_appointment: {e}")
+        import traceback
+        traceback.print_exc()
+        # Don't raise - this is fire-and-forget
+
+
 @app.websocket("/media-stream")
 async def handle_media_stream(websocket: WebSocket) -> None:
     """
@@ -1516,6 +1738,44 @@ async def handle_media_stream(websocket: WebSocket) -> None:
     call_sid_from_query = websocket.query_params.get('call_sid')
     if call_sid_from_query:
         print(f"📞 Call SID from query: {call_sid_from_query}")
+        
+        # FALLBACK: If call doesn't exist in database, create it now
+        # This handles cases where Twilio calls /media-stream directly
+        if call_manager:
+            print(f"🔍 Checking if call exists in cache/database...")
+            try:
+                # Check if call exists
+                existing_call = await call_manager.get_call_context(call_sid_from_query)
+                print(f"   Cache check result: {existing_call is not None}")
+                
+                if not existing_call:
+                    # Try to get from database
+                    call_record = await database_service.get_call_by_sid(call_sid_from_query) if database_service else None
+                    print(f"   Database check result: {call_record is not None}")
+                    
+                    if not call_record:
+                        print(f"⚠️  Call not found, creating it now (Twilio bypassed /incoming-call)")
+                        # Extract caller phone from Twilio metadata if available
+                        # For now, use a placeholder - Twilio will send it in the first message
+                        context = await call_manager.initiate_call(
+                            call_sid=call_sid_from_query,
+                            caller_phone="unknown",  # Will be updated from Twilio messages
+                            direction="inbound"
+                        )
+                        print(f"✅ Call created in WebSocket handler: {context.call_id}")
+                        print(f"   Verifying Redis storage...")
+                        verify = await call_manager.get_call_context(call_sid_from_query)
+                        print(f"   Redis verification: {verify is not None}")
+                    else:
+                        print(f"✅ Call found in database: {call_record.get('id')}")
+                else:
+                    print(f"✅ Call found in cache: {existing_call.call_id}")
+            except Exception as e:
+                print(f"⚠️  Error checking/creating call: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"❌ call_manager is None! Cannot create call.")
 
     ssl_context = create_ssl_context()
     call_start_time = datetime.now(timezone.utc)
@@ -1648,8 +1908,13 @@ async def handle_media_stream(websocket: WebSocket) -> None:
                 print(f"📊 Call summary: language={detected_lang}, sid={state.call_sid}")
                 
                 print(f"📞 Call ended, completing call: {state.call_sid}")
-                await call_manager.complete_call(state.call_sid)
-                print(f"✅ Call completed and transcripts saved")
+                try:
+                    await call_manager.complete_call(state.call_sid)
+                except ValueError as e:
+                    print(f"⚠️ Could not complete call record: {e}")
+                    # Call audio still worked fine — this is just a DB cleanup issue
+                else:
+                    print(f"✅ Call completed and transcripts saved")
             except Exception as e:
                 print(f"⚠️  Error completing call: {e}")
                 import traceback

@@ -549,15 +549,18 @@ class CallManager:
         Requirements: 1.4, 8.3
         """
         # Try to get call context from cache
+        print(f"🔍 Attempting to complete call: {call_sid}")
         context = await self.get_call_context(call_sid)
         
         # If context not in cache, get call from database
         if not context:
             print(f"⚠️  Call context not in cache, fetching from database...")
+            print(f"   Looking for call_sid: {call_sid}")
             call_record = await self.database.get_call_by_sid(call_sid)
             if not call_record:
                 print(f"❌ Call not found in database: {call_sid}")
-                raise ValueError(f"Call not found for call_sid: {call_sid}")
+                print(f"   Skipping completion gracefully.")
+                return False  # Don't raise — just exit cleanly
             
             # Calculate duration from database record
             ended_at = datetime.now(timezone.utc)
@@ -617,6 +620,80 @@ class CallManager:
                 recording_url=recording_url,
                 transcript_url=transcript_url
             )
+        
+        # Analyze conversation and extract structured data
+        if context.conversation_history and len(context.conversation_history) > 0:
+            try:
+                print(f"🤖 Analyzing conversation with AI...")
+                from conversation_analyzer import ConversationAnalyzer
+                analyzer = ConversationAnalyzer()
+                
+                analysis = await analyzer.analyze_conversation(
+                    conversation_history=context.conversation_history,
+                    caller_phone=context.caller_phone,
+                    call_duration_seconds=duration_seconds
+                )
+                
+                # Save appointments
+                if analysis.get('appointments'):
+                    from appointment_manager import AppointmentManager
+                    appt_manager = AppointmentManager(database=self.database)
+                    
+                    for appt_data in analysis['appointments']:
+                        try:
+                            # Parse datetime
+                            appt_dt_str = appt_data.get('appointment_datetime')
+                            if appt_dt_str:
+                                from datetime import datetime
+                                appt_dt = datetime.fromisoformat(appt_dt_str.replace('Z', '+00:00'))
+                                if appt_dt.tzinfo is None:
+                                    appt_dt = appt_dt.replace(tzinfo=timezone.utc)
+                                
+                                # Book appointment
+                                _, appt_id = await appt_manager.book_appointment(
+                                    call_id=context.call_id,
+                                    customer_name=appt_data.get('customer_name', 'Customer'),
+                                    customer_phone=appt_data.get('customer_phone', context.caller_phone),
+                                    appointment_datetime=appt_dt,
+                                    service_type=appt_data.get('service_type', 'General'),
+                                    notes=appt_data.get('notes')
+                                )
+                                print(f"✅ Appointment saved: {appt_id} for {appt_data.get('customer_name')}")
+                        except Exception as appt_error:
+                            print(f"⚠️  Error saving appointment: {appt_error}")
+                
+                # Save leads
+                if analysis.get('leads'):
+                    from lead_manager import LeadManager
+                    lead_manager = LeadManager(database=self.database)
+                    
+                    for lead_data in analysis['leads']:
+                        try:
+                            lead_id = await lead_manager.capture_lead(
+                                call_id=context.call_id,
+                                name=lead_data.get('name', 'Customer'),
+                                phone=lead_data.get('phone', context.caller_phone),
+                                email=lead_data.get('email'),
+                                inquiry_details=lead_data.get('inquiry_details', ''),
+                                budget_indication=lead_data.get('budget_indication'),
+                                timeline=lead_data.get('timeline'),
+                                decision_authority=False,
+                                lead_score=lead_data.get('lead_score', 5)
+                            )
+                            print(f"✅ Lead saved: {lead_id} (score: {lead_data.get('lead_score')})")
+                        except Exception as lead_error:
+                            print(f"⚠️  Error saving lead: {lead_error}")
+                
+                # Store call insights in metadata
+                if analysis.get('call_insights'):
+                    insights = analysis['call_insights']
+                    context.metadata['ai_insights'] = insights
+                    print(f"✅ Call insights: {insights.get('primary_intent')} - {insights.get('sentiment')}")
+                
+            except Exception as analysis_error:
+                print(f"⚠️  Error analyzing conversation: {analysis_error}")
+                import traceback
+                traceback.print_exc()
         
         # Update cached context
         context.metadata["status"] = CallStatus.COMPLETED.value

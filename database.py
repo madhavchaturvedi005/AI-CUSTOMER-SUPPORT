@@ -3,7 +3,7 @@
 import os
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncpg
 from asyncpg.pool import Pool
 
@@ -122,8 +122,9 @@ class DatabaseService:
                 caller_name,
                 language,
                 json.dumps(metadata or {}),
-                datetime.utcnow()
+                datetime.now(timezone.utc)
             )
+            print(f"✅ Call created in database: {call_id} (SID: {call_sid})")
             return str(call_id)
     
     async def update_call_status(
@@ -536,6 +537,11 @@ class DatabaseService:
             
         Requirement 6.4: Create calendar entry
         """
+        # Convert timezone-aware datetime to naive UTC for TIMESTAMP column
+        # (Database uses TIMESTAMP not TIMESTAMPTZ)
+        if appointment_datetime and appointment_datetime.tzinfo is not None:
+            appointment_datetime = appointment_datetime.astimezone(timezone.utc).replace(tzinfo=None)
+        
         query = """
             INSERT INTO appointments (
                 call_id, customer_name, customer_phone, customer_email,
@@ -551,7 +557,7 @@ class DatabaseService:
                 query,
                 call_id, customer_name, customer_phone, customer_email,
                 service_type, appointment_datetime, duration_minutes,
-                notes, status, datetime.now(timezone.utc)
+                notes, status, datetime.utcnow()  # Use naive datetime for TIMESTAMP column
             )
             return str(appointment_id)
     

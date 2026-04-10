@@ -1,99 +1,329 @@
-#  Speech Assistant with Twilio Voice and the OpenAI Realtime API (Python)
+# AI Customer Support - Voice Assistant
 
-This application demonstrates how to use Python, [Twilio Voice](https://www.twilio.com/docs/voice) and [Media Streams](https://www.twilio.com/docs/voice/media-streams), and [OpenAI's Realtime API](https://platform.openai.com/docs/) to make a phone call to speak with an AI Assistant. 
+A production-ready AI-powered voice assistant for customer support using OpenAI Realtime API, Twilio, and PostgreSQL. Supports 5 languages with automatic detection, real-time transcription, and comprehensive analytics dashboard.
 
-The application opens websockets with the OpenAI Realtime API and Twilio, and sends voice audio from one to the other to enable a two-way conversation.
+## 🌟 Features
 
-See [here](https://www.twilio.com/en-us/blog/voice-ai-assistant-openai-realtime-api-python) for a tutorial overview of the code.
+### Core Capabilities
+- ✅ **Real-time Voice Conversations** - Natural phone conversations using OpenAI Realtime API
+- ✅ **5 Language Support** - English, Hindi, Tamil, Telugu, Bengali with automatic detection
+- ✅ **Call Transcription** - Real-time transcription saved to database
+- ✅ **AI Insights** - Automatic sentiment analysis, key points extraction, and action items
+- ✅ **Intent Detection** - Automatic detection of caller intent with clarification
+- ✅ **Call Analytics** - Comprehensive dashboard with metrics and trends
+- ✅ **Knowledge Base** - Upload documents (PDF, DOCX, TXT) for AI context
+- ✅ **Configurable AI** - Customize greeting, personality, and company description
+- ✅ **Cloud Database** - Aiven PostgreSQL for data persistence
+- ✅ **Call History** - Complete conversation logs with timestamps
 
-This application uses the following Twilio products in conjunction with OpenAI's Realtime API:
-- Voice (and TwiML, Media Streams)
-- Phone Numbers
+### Dashboard Features
+- 📊 Real-time analytics and metrics
+- 📞 Call history with detailed transcripts
+- 💬 AI-generated insights for each call
+- 📈 Intent distribution charts
+- 🎯 Lead management
+- 📅 Appointment tracking
+- ⚙️ Configuration management
+- 📚 Document upload for knowledge base
 
-> [!NOTE]
-> Outbound calling is beyond the scope of this app. However, we demoed [one way to do it here](https://www.twilio.com/en-us/blog/outbound-calls-python-openai-realtime-api-voice).
+## 🚀 Quick Start
 
-## Prerequisites
+### Prerequisites
+- Python 3.11+
+- PostgreSQL (or Aiven account)
+- Redis
+- Twilio account
+- OpenAI API key
 
-To use the app, you will  need:
+### Installation
 
-- **Python 3.9+** We used \`3.9.13\` for development; download from [here](https://www.python.org/downloads/).
-- **A Twilio account.** You can sign up for a free trial [here](https://www.twilio.com/try-twilio).
-- **A Twilio number with _Voice_ capabilities.** [Here are instructions](https://help.twilio.com/articles/223135247-How-to-Search-for-and-Buy-a-Twilio-Phone-Number-from-Console) to purchase a phone number.
-- **An OpenAI account and an OpenAI API Key.** You can sign up [here](https://platform.openai.com/).
-  - **OpenAI Realtime API access.**
-
-## Local Setup
-
-There are 4 required steps and 1 optional step to get the app up-and-running locally for development and testing:
-1. Run ngrok or another tunneling solution to expose your local server to the internet for testing. Download ngrok [here](https://ngrok.com/).
-2. (optional) Create and use a virtual environment
-3. Install the packages
-4. Twilio setup
-5. Update the .env file
-
-### Open an ngrok tunnel
-When developing & testing locally, you'll need to open a tunnel to forward requests to your local development server. These instructions use ngrok.
-
-Open a Terminal and run:
-```
-ngrok http 5050
-```
-Once the tunnel has been opened, copy the `Forwarding` URL. It will look something like: `https://[your-ngrok-subdomain].ngrok.app`. You will
-need this when configuring your Twilio number setup.
-
-Note that the `ngrok` command above forwards to a development server running on port `5050`, which is the default port configured in this application. If
-you override the `PORT` defined in `index.js`, you will need to update the `ngrok` command accordingly.
-
-Keep in mind that each time you run the `ngrok http` command, a new URL will be created, and you'll need to update it everywhere it is referenced below.
-
-### (Optional) Create and use a virtual environment
-
-To reduce cluttering your global Python environment on your machine, you can create a virtual environment. On your command line, enter:
-
-```
-python3 -m venv env
-source env/bin/activate
+1. **Clone the repository**
+```bash
+git clone https://github.com/madhavchaturvedi005/AI-CUSTOMER-SUPPORT.git
+cd AI-CUSTOMER-SUPPORT
 ```
 
-### Install required packages
-
-In the terminal (with the virtual environment, if you set it up) run:
-```
+2. **Install dependencies**
+```bash
 pip install -r requirements.txt
 ```
 
-### Twilio setup
-
-#### Point a Phone Number to your ngrok URL
-In the [Twilio Console](https://console.twilio.com/), go to **Phone Numbers** > **Manage** > **Active Numbers** and click on the additional phone number you purchased for this app in the **Prerequisites**.
-
-In your Phone Number configuration settings, update the first **A call comes in** dropdown to **Webhook**, and paste your ngrok forwarding URL (referenced above), followed by `/incoming-call`. For example, `https://[your-ngrok-subdomain].ngrok.app/incoming-call`. Then, click **Save configuration**.
-
-### Update the .env file
-
-Create a `/env` file, or copy the `.env.example` file to `.env`:
-
-```
+3. **Set up environment variables**
+```bash
 cp .env.example .env
+# Edit .env with your credentials
 ```
 
-In the .env file, update the `OPENAI_API_KEY` to your OpenAI API key from the **Prerequisites**.
+Required environment variables:
+```bash
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key
 
-## Run the app
-Once ngrok is running, dependencies are installed, Twilio is configured properly, and the `.env` is set up, run the dev server with the following command:
+# Aiven PostgreSQL (Cloud Database)
+DB_HOST=your-service.aivencloud.com
+DB_PORT=14641
+DB_NAME=defaultdb
+DB_USER=avnadmin
+DB_PASSWORD=your_password
+DB_SSLMODE=require
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Server
+PORT=5050
 ```
-python main.py
+
+4. **Run database migrations**
+```bash
+# Using Aiven PostgreSQL
+psql "postgres://user:pass@host:port/db?sslmode=require" -f migrations/001_initial_schema.sql
+psql "postgres://user:pass@host:port/db?sslmode=require" -f migrations/002_knowledge_base.sql
+psql "postgres://user:pass@host:port/db?sslmode=require" -f migrations/003_company_description.sql
 ```
-## Test the app
-With the development server running, call the phone number you purchased in the **Prerequisites**. After the introduction, you should be able to talk to the AI Assistant. Have fun!
 
-## Special features
+5. **Start the server**
+```bash
+python3 main.py
+```
 
-### Have the AI speak first
-To have the AI voice assistant talk before the user, uncomment the line `# await send_initial_conversation_item(openai_ws)`. The initial greeting is controlled in `async def send_initial_conversation_item(openai_ws)`.
+6. **Access the dashboard**
+```
+http://localhost:5050/frontend/index.html
+```
 
-### Interrupt handling/AI preemption
-When the user speaks and OpenAI sends `input_audio_buffer.speech_started`, the code will clear the Twilio Media Streams buffer and send OpenAI `conversation.item.truncate`.
+## 📱 Twilio Setup
 
-Depending on your application's needs, you may want to use the [`input_audio_buffer.speech_stopped`](https://platform.openai.com/docs/api-reference/realtime-server-events/input-audio-buffer-speech-stopped) event, instead, or a combination of the two.
+1. Create a Twilio account at https://www.twilio.com
+2. Get a phone number with voice capabilities
+3. Configure webhook URL:
+   - Voice: `https://your-domain.com/incoming-call`
+   - Method: GET
+
+## 🗄️ Database Setup
+
+### Option 1: Aiven PostgreSQL (Recommended for Production)
+
+1. Sign up at https://aiven.io (free $300 credits)
+2. Create PostgreSQL service (Hobbyist plan is free)
+3. Copy connection details to .env
+4. Run migrations (see Installation step 4)
+
+**Benefits:**
+- ✅ Data persists across PC shutdowns
+- ✅ Automatic daily backups
+- ✅ 99.99% uptime
+- ✅ Free tier available
+
+See [AIVEN_POSTGRESQL_SETUP.md](AIVEN_POSTGRESQL_SETUP.md) for detailed guide.
+
+### Option 2: Local PostgreSQL
+
+```bash
+# Install PostgreSQL
+brew install postgresql  # macOS
+# or
+sudo apt-get install postgresql  # Linux
+
+# Create database
+createdb voice_automation
+
+# Update .env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=voice_automation
+DB_USER=your_username
+```
+
+## 🌍 Multilingual Support
+
+The system automatically detects and responds in the caller's language:
+
+- **English** - Default
+- **Hindi / हिंदी** - Automatic detection
+- **Tamil / தமிழ்** - Automatic detection
+- **Telugu / తెలుగు** - Automatic detection
+- **Bengali / বাংলা** - Automatic detection
+
+### How it works:
+1. Caller speaks in their preferred language
+2. AI detects language from first message
+3. AI responds entirely in that language
+4. Language consistency maintained throughout call
+
+See [MULTILINGUAL_SYSTEM_IMPLEMENTATION.md](MULTILINGUAL_SYSTEM_IMPLEMENTATION.md) for details.
+
+## 📊 Dashboard
+
+Access the dashboard at `http://localhost:5050/frontend/index.html`
+
+### Tabs:
+1. **Overview** - Real-time metrics and charts
+2. **Call History** - All calls with transcripts and insights
+3. **Leads** - Captured lead information
+4. **Appointments** - Scheduled appointments
+5. **Configuration** - Customize AI behavior
+6. **Documents** - Upload knowledge base documents
+
+### Configuration Options:
+- **Greeting Message** - Custom phone greeting
+- **Company Description** - Business context for AI (50-200 words recommended)
+- **AI Personality** - Tone (Professional, Friendly, Casual) and Style (Concise, Detailed)
+- **Business Hours** - Operating hours
+- **Languages** - All 5 languages enabled by default
+
+## 🔧 API Endpoints
+
+### Call Management
+- `GET /incoming-call` - Twilio webhook for incoming calls
+- `GET /api/calls` - List all calls
+- `GET /api/calls/{call_id}` - Get call details with transcript and insights
+
+### Analytics
+- `GET /api/analytics` - Dashboard analytics and metrics
+
+### Configuration
+- `GET /api/config` - Get current configuration
+- `POST /api/config` - Update configuration
+
+### Documents
+- `GET /api/documents` - List uploaded documents
+- `POST /api/documents` - Upload documents for knowledge base
+
+### Debug
+- `GET /api/system-prompt` - View current AI system prompt
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐
+│   Twilio    │ ← Phone calls
+└──────┬──────┘
+       │
+       ↓
+┌─────────────────────────────────┐
+│      FastAPI Server             │
+│  ┌──────────────────────────┐  │
+│  │  WebSocket Handler       │  │
+│  │  (Twilio ↔ OpenAI)      │  │
+│  └──────────────────────────┘  │
+│  ┌──────────────────────────┐  │
+│  │  Call Manager            │  │
+│  │  - Language Detection    │  │
+│  │  - Intent Detection      │  │
+│  │  - Conversation History  │  │
+│  └──────────────────────────┘  │
+└─────────┬───────────────────────┘
+          │
+          ↓
+┌─────────────────────────────────┐
+│   Aiven PostgreSQL (Cloud)      │
+│   - Calls & Transcripts         │
+│   - Leads & Appointments        │
+│   - Configuration               │
+│   - Knowledge Base              │
+└─────────────────────────────────┘
+```
+
+## 📝 Key Files
+
+- `main.py` - FastAPI server and WebSocket handlers
+- `config.py` - Configuration and multilingual system message
+- `database.py` - PostgreSQL operations
+- `call_manager.py` - Call lifecycle management
+- `handlers.py` - Twilio/OpenAI WebSocket handlers
+- `intent_detector.py` - Intent detection logic
+- `language_manager.py` - Language detection and management
+- `frontend/` - Dashboard HTML/JS
+
+## 🔐 Security
+
+- ✅ SSL/TLS encryption for database connections
+- ✅ Environment variables for sensitive data
+- ✅ .env file excluded from git
+- ✅ Secure password authentication
+- ✅ API key protection
+
+## 🐛 Troubleshooting
+
+### Connection Issues
+```bash
+# Test database connection
+psql "your_connection_string" -c "SELECT version();"
+
+# Test server
+curl http://localhost:5050/api/analytics
+```
+
+### Timezone Errors
+- Ensure all datetime objects are timezone-aware
+- Database automatically handles timezone conversion
+
+### Call Not Saving
+- Check server logs for errors
+- Verify database connection
+- Ensure migrations ran successfully
+
+## 📚 Documentation
+
+- [Aiven PostgreSQL Setup](AIVEN_POSTGRESQL_SETUP.md)
+- [Multilingual System](MULTILINGUAL_SYSTEM_IMPLEMENTATION.md)
+- [Frontend Updates](FRONTEND_MULTILINGUAL_UPDATE.md)
+- [Transcript Saving Fix](TRANSCRIPT_AND_GREETING_FIX.md)
+- [Database Migration](AIVEN_MIGRATION_COMPLETE.md)
+
+## 🚧 Known Limitations
+
+- ⚠️ Appointment booking requires manual integration (AI can discuss but not save)
+- ⚠️ Call transfer to human agents not implemented
+- ⚠️ SMS notifications not configured
+
+## 🛣️ Roadmap
+
+- [ ] Function calling for appointment booking
+- [ ] SMS notifications via Twilio
+- [ ] Email integration
+- [ ] CRM integration (Salesforce, HubSpot)
+- [ ] Multi-tenant support
+- [ ] Advanced analytics and reporting
+- [ ] Call recording storage
+- [ ] Voicemail handling
+
+## 📄 License
+
+MIT License - See LICENSE file for details
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📧 Support
+
+For issues or questions:
+- Open an issue on GitHub
+- Email: madhavchaturvedi005@gmail.com
+
+## 🙏 Acknowledgments
+
+- OpenAI Realtime API
+- Twilio Voice API
+- Aiven PostgreSQL
+- FastAPI Framework
+
+## 📊 Stats
+
+- **Languages**: Python, JavaScript, HTML, CSS
+- **Database**: PostgreSQL (Aiven)
+- **Cache**: Redis
+- **API**: OpenAI Realtime API, Twilio Voice
+- **Framework**: FastAPI
+- **Frontend**: Vanilla JS, Tailwind CSS
+
+---
+
+Built with ❤️ by Madhav Chaturvedi

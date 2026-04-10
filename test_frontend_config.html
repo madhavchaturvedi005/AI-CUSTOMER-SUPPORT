@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Configuration Loading</title>
+</head>
+<body>
+    <h1>Test Configuration Loading</h1>
+    <button onclick="testConfig()">Test GET /api/config</button>
+    <button onclick="testSaveConfig()">Test POST /api/config</button>
+    <pre id="output"></pre>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function testConfig() {
+            const output = document.getElementById('output');
+            output.textContent = 'Loading configuration...\n';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/config`);
+                const data = await response.json();
+                
+                output.textContent += '\n✅ Response received:\n';
+                output.textContent += JSON.stringify(data, null, 2);
+                
+                if (data.success && data.config) {
+                    output.textContent += '\n\n✅ Configuration loaded successfully!';
+                    output.textContent += '\nGreeting: ' + data.config.greeting.message;
+                    output.textContent += '\nBusiness Hours: ' + JSON.stringify(data.config.business_hours);
+                    output.textContent += '\nPersonality: ' + JSON.stringify(data.config.personality);
+                }
+            } catch (error) {
+                output.textContent += '\n❌ Error: ' + error.message;
+            }
+        }
+
+        async function testSaveConfig() {
+            const output = document.getElementById('output');
+            output.textContent = 'Saving test configuration...\n';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        type: 'greeting',
+                        data: {
+                            message: 'Hello, welcome to Suresh Salon! How can I help you today? I can understand English, Hindi, Tamil, and Telugu.'
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                output.textContent += '\n✅ Save response:\n';
+                output.textContent += JSON.stringify(data, null, 2);
+                
+                // Now test loading it back
+                output.textContent += '\n\nLoading configuration back...\n';
+                await testConfig();
+                
+            } catch (error) {
+                output.textContent += '\n❌ Error: ' + error.message;
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, testing configuration...');
+            testConfig();
+        });
+    </script>
+</body>
+</html>

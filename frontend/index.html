@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Automation Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-phone-volume text-blue-600 text-2xl mr-3"></i>
+                    <span class="text-xl font-bold text-gray-800">AI Voice Automation</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">System Status:</span>
+                    <span class="flex items-center">
+                        <span class="h-3 w-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        <span class="text-sm font-medium text-green-600">Online</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Tab Navigation -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8">
+                <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-button active border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600">
+                    <i class="fas fa-chart-line mr-2"></i>Dashboard
+                </button>
+                <button onclick="showTab('calls')" id="tab-calls" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <i class="fas fa-phone mr-2"></i>Calls
+                </button>
+                <button onclick="showTab('leads')" id="tab-leads" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <i class="fas fa-users mr-2"></i>Leads
+                </button>
+                <button onclick="showTab('appointments')" id="tab-appointments" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <i class="fas fa-calendar mr-2"></i>Appointments
+                </button>
+                <button onclick="showTab('config')" id="tab-config" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <i class="fas fa-cog mr-2"></i>Configuration
+                </button>
+                <button onclick="showTab('documents')" id="tab-documents" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    <i class="fas fa-file-alt mr-2"></i>Documents
+                </button>
+            </nav>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="content-dashboard" class="tab-content">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">Total Calls</p>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-total-calls">0</p>
+                        </div>
+                        <div class="bg-blue-100 rounded-full p-3">
+                            <i class="fas fa-phone text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">New Leads</p>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-leads">0</p>
+                        </div>
+                        <div class="bg-green-100 rounded-full p-3">
+                            <i class="fas fa-user-plus text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">Appointments</p>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-appointments">0</p>
+                        </div>
+                        <div class="bg-purple-100 rounded-full p-3">
+                            <i class="fas fa-calendar-check text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">Avg Duration</p>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-duration">0m</p>
+                        </div>
+                        <div class="bg-yellow-100 rounded-full p-3">
+                            <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Call Volume (Last 7 Days)</h3>
+                    <canvas id="callVolumeChart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Intent Distribution</h3>
+                    <canvas id="intentChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                <div id="recent-activity" class="space-y-3">
+                    <!-- Activity items will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Calls Tab -->
+        <div id="content-calls" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Call History</h3>
+                        <button onclick="refreshCalls()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Caller</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Intent</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calls-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Call rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leads Tab -->
+        <div id="content-leads" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Lead Management</h3>
+                        <div class="flex space-x-2">
+                            <select class="border border-gray-300 rounded-lg px-4 py-2" onchange="filterLeads(this.value)">
+                                <option value="all">All Leads</option>
+                                <option value="high">High Value (7-10)</option>
+                                <option value="medium">Medium Value (4-6)</option>
+                                <option value="low">Low Value (1-3)</option>
+                            </select>
+                            <button onclick="refreshLeads()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                <i class="fas fa-sync-alt mr-2"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Budget</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timeline</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Lead rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appointments Tab -->
+        <div id="content-appointments" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Scheduled Appointments</h3>
+                        <button onclick="refreshAppointments()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="appointments-calendar" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Appointment cards will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Tab -->
+        <div id="content-config" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Business Hours -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Business Hours</h3>
+                    <form id="business-hours-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Monday - Friday</label>
+                            <div class="flex space-x-2">
+                                <input type="time" value="09:00" class="border border-gray-300 rounded-lg px-3 py-2 flex-1">
+                                <span class="flex items-center">to</span>
+                                <input type="time" value="17:00" class="border border-gray-300 rounded-lg px-3 py-2 flex-1">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Business Hours
+                        </button>
+                    </form>
+                </div>
+
+                <!-- AI Greeting -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">AI Greeting Message</h3>
+                    <form id="greeting-form" class="space-y-4">
+                        <textarea rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Enter your custom greeting message...">Welcome to our business! How can I help you today?</textarea>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Greeting
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Company Description -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Company Description</h3>
+                    <p class="text-sm text-gray-600 mb-3">Describe your business to help the AI understand your company's context, tone, and services.</p>
+                    <form id="company-description-form" class="space-y-4">
+                        <textarea id="company-description-text" rows="6" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="e.g., We are a premium healthcare clinic specializing in family medicine with 20+ years of experience. We pride ourselves on personalized care and cutting-edge treatments..."></textarea>
+                        <div class="flex items-center justify-between text-sm text-gray-500">
+                            <span id="description-word-count">0 words</span>
+                            <span class="text-xs">Recommended: 50-200 words</span>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Description
+                        </button>
+                    </form>
+                </div>
+
+                <!-- AI Personality -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">AI Personality</h3>
+                    <form id="personality-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tone</label>
+                            <select class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option>Professional</option>
+                                <option>Friendly</option>
+                                <option>Casual</option>
+                                <option>Formal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Response Style</label>
+                            <select class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option>Concise</option>
+                                <option>Detailed</option>
+                                <option>Conversational</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Personality
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Languages -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Supported Languages</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" checked class="mr-2">
+                            <span>English</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked class="mr-2">
+                            <span>Hindi / हिंदी</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked class="mr-2">
+                            <span>Tamil / தமிழ்</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked class="mr-2">
+                            <span>Telugu / తెలుగు</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" checked class="mr-2">
+                            <span>Bengali / বাংলা</span>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        AI automatically detects and responds in the caller's language
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documents Tab -->
+        <div id="content-documents" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold mb-4">Company Knowledge Base</h3>
+                <p class="text-gray-600 mb-6">Upload company documents to enhance AI responses with your business information.</p>
+                
+                <!-- Upload Area -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-600 mb-2">Drag and drop files here, or click to browse</p>
+                    <input type="file" id="document-upload" multiple class="hidden" onchange="handleFileUpload(event)">
+                    <button onclick="document.getElementById('document-upload').click()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 mt-4">
+                        Choose Files
+                    </button>
+                    <p class="text-sm text-gray-500 mt-2">Supported: PDF, DOCX, TXT (Max 10MB)</p>
+                </div>
+
+                <!-- Uploaded Documents -->
+                <div id="documents-list" class="space-y-3">
+                    <!-- Document items will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -13,9 +13,9 @@ echo "📦 Updating system packages..."
 sudo apt-get update
 sudo apt-get upgrade -y
 
-# Install Python 3.11
-echo "🐍 Installing Python 3.11..."
-sudo apt-get install -y python3.11 python3.11-venv python3-pip
+# Install Python 3.10 (default on Ubuntu 22.04)
+echo "🐍 Installing Python 3.10..."
+sudo apt-get install -y python3 python3-venv python3-pip
 
 # Install system dependencies
 echo "📚 Installing system dependencies..."
@@ -42,7 +42,7 @@ echo "📥 Setting up application..."
 
 # Create virtual environment
 echo "🔧 Creating virtual environment..."
-python3.11 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 
 # Install Python dependencies

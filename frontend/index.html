@@ -8,6 +8,45 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // Check authentication before loading page
+        (async function checkAuth() {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/verify-session?token=${token}`);
+                const data = await response.json();
+                
+                if (!data.valid) {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('username');
+                    window.location.href = '/login.html';
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/login.html';
+            }
+        })();
+        
+        // Logout function
+        function logout() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                fetch('/api/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+            }
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('username');
+            window.location.href = '/login.html';
+        }
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         
@@ -136,8 +175,8 @@
             letter-spacing: -0.01em;
         }
         
-        .tab-button:hover {
-            color: #3b82f6;
+        .tab-button:not(.active):hover {
+            background: rgba(59, 130, 246, 0.05);
         }
         
         .tab-button.active::after {
@@ -397,10 +436,27 @@
                         <span class="h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></span>
                         <span class="text-sm font-semibold text-green-700">System Online</span>
                     </div>
+                    <div class="flex items-center space-x-3 border-l border-gray-200 pl-6">
+                        <div class="text-right">
+                            <p class="text-sm font-semibold text-gray-900" id="user-name">User</p>
+                            <p class="text-xs text-gray-500">Administrator</p>
+                        </div>
+                        <button onclick="logout()" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition-all font-medium text-sm">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </nav>
+    
+    <script>
+        // Display username
+        const username = localStorage.getItem('username');
+        if (username) {
+            document.getElementById('user-name').textContent = username;
+        }
+    </script>
 
     <!-- Main Container -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -886,8 +942,8 @@
         </div>
     </div>
 
-    <script src="dashboard.js"></script>
-    <script src="live_events.js"></script>
+    <script src="/frontend/dashboard.js"></script>
+    <script src="/frontend/live_events.js"></script>
 </body>
 
 </html>

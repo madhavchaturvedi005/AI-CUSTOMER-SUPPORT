@@ -270,6 +270,56 @@ class VectorService:
         
         return len(point_ids)
     
+    async def list_documents(self) -> List[Dict[str, Any]]:
+        """
+        List all unique documents in the collection.
+        
+        Returns:
+            List of documents with metadata including chunk counts
+        """
+        try:
+            # Scroll through all points to get unique documents
+            results = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=1000,
+                with_payload=True
+            )
+            
+            # Group by document_id to get unique documents and count chunks
+            documents_map = {}
+            chunk_counts = {}
+            
+            for point in results[0]:
+                doc_id = point.payload.get("document_id")
+                if doc_id:
+                    # Count chunks per document
+                    chunk_counts[doc_id] = chunk_counts.get(doc_id, 0) + 1
+                    
+                    # Store document info (only once per document)
+                    if doc_id not in documents_map:
+                        metadata = point.payload.get("metadata", {})
+                        documents_map[doc_id] = {
+                            "id": doc_id,
+                            "filename": metadata.get("filename", doc_id),
+                            "file_type": metadata.get("file_type", "unknown"),
+                            "uploaded_at": metadata.get("uploaded_at"),
+                            "size": metadata.get("size", 0)
+                        }
+            
+            # Add chunk counts to documents
+            for doc_id, doc_info in documents_map.items():
+                doc_info["chunk_count"] = chunk_counts.get(doc_id, 0)
+                doc_info["vector_count"] = chunk_counts.get(doc_id, 0)
+            
+            documents = list(documents_map.values())
+            total_chunks = sum(chunk_counts.values())
+            print(f"📚 Found {len(documents)} unique documents with {total_chunks} total chunks in Qdrant")
+            return documents
+            
+        except Exception as e:
+            print(f"⚠️  Error listing documents: {e}")
+            return []
+    
     async def get_collection_info(self) -> Dict[str, Any]:
         """Get information about the collection."""
         try:

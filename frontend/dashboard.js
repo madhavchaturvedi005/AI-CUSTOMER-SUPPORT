@@ -303,8 +303,8 @@ async function refreshCalls() {
                     ${getStatusBadge(call.status)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <button onclick="viewCallDetails('${call.id}')" class="text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-eye"></i> View
+                    <button onclick="viewCallDetails('${call.id}')" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-xs">
+                        <i class="fas fa-eye mr-1.5"></i> View Details
                     </button>
                 </td>
             </tr>
@@ -354,8 +354,8 @@ async function refreshLeads() {
                     ${lead.timeline || '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <button onclick="viewLeadDetails('${lead.id}')" class="text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-eye"></i> View
+                    <button onclick="viewLeadDetails('${lead.id}')" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-xs">
+                        <i class="fas fa-eye mr-1.5"></i> View Details
                     </button>
                 </td>
             </tr>
@@ -410,8 +410,8 @@ async function filterLeads(filter) {
                     ${lead.timeline || '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <button onclick="viewLeadDetails('${lead.id}')" class="text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-eye"></i> View
+                    <button onclick="viewLeadDetails('${lead.id}')" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-xs">
+                        <i class="fas fa-eye mr-1.5"></i> View Details
                     </button>
                 </td>
             </tr>
@@ -750,39 +750,97 @@ async function refreshDocumentsList() {
         const data = await response.json();
         
         if (data.success && data.documents && data.documents.length > 0) {
-            container.innerHTML = data.documents.map(doc => {
-                const uploadedDate = new Date(doc.uploaded_at);
-                const timeAgo = getTimeAgo(uploadedDate);
+            // Add summary header
+            const summaryHtml = `
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 mb-6 border border-blue-200">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="bg-blue-500 p-3 rounded-lg">
+                                <i class="fas fa-database text-white text-2xl"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-bold text-gray-900">Qdrant Vector Database</h4>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    <span class="font-semibold text-blue-600">${data.documents.length}</span> document${data.documents.length !== 1 ? 's' : ''} indexed
+                                    ${data.total_chunks ? `<span class="mx-2">•</span><span class="font-semibold text-indigo-600">${data.total_chunks}</span> vector chunks` : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="refreshDocumentsList()" class="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg border border-gray-200 transition-all font-medium text-sm">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            const documentsHtml = data.documents.map(doc => {
+                const uploadedDate = doc.uploaded_at ? new Date(doc.uploaded_at) : null;
+                const timeAgo = uploadedDate ? getTimeAgo(uploadedDate) : 'Unknown';
                 const fileIcon = getFileIcon(doc.file_type);
                 const fileSize = formatFileSize(doc.size);
                 
                 return `
-                    <div class="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-all">
-                        <div class="flex items-center space-x-4">
-                            <div class="bg-white p-3 rounded-lg shadow-sm">
-                                <i class="fas ${fileIcon} text-2xl"></i>
+                    <div class="bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all overflow-hidden">
+                        <div class="flex items-center justify-between p-5">
+                            <div class="flex items-center space-x-4 flex-1">
+                                <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-xl shadow-sm">
+                                    <i class="fas ${fileIcon} text-3xl"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-3 mb-2">
+                                        <p class="text-base font-bold text-gray-900">${doc.filename}</p>
+                                        ${doc.chunk_count ? `<span class="bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full">${doc.chunk_count} chunks</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                        <span class="flex items-center">
+                                            <i class="fas fa-hdd mr-1.5 text-gray-400"></i>
+                                            <span class="font-medium">${fileSize}</span>
+                                        </span>
+                                        <span class="flex items-center">
+                                            <i class="fas fa-clock mr-1.5 text-gray-400"></i>
+                                            <span>Uploaded ${timeAgo}</span>
+                                        </span>
+                                        ${doc.file_type ? `
+                                        <span class="flex items-center">
+                                            <i class="fas fa-tag mr-1.5 text-gray-400"></i>
+                                            <span class="uppercase">${doc.file_type.split('/').pop()}</span>
+                                        </span>
+                                        ` : ''}
+                                    </div>
+                                    ${doc.vector_count ? `
+                                    <div class="mt-2 flex items-center space-x-2">
+                                        <span class="text-xs text-gray-500">
+                                            <i class="fas fa-vector-square mr-1 text-indigo-500"></i>
+                                            ${doc.vector_count} vectors in Qdrant
+                                        </span>
+                                    </div>
+                                    ` : ''}
+                                </div>
                             </div>
-                            <div>
-                                <p class="text-sm font-semibold text-gray-900">${doc.filename}</p>
-                                <p class="text-xs text-gray-500 mt-1">
-                                    <span class="font-medium">${fileSize}</span>
-                                    <span class="mx-2">•</span>
-                                    <span>Uploaded ${timeAgo}</span>
-                                </p>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="viewDocumentDetails('${doc.id}')" 
+                                    class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2 rounded-lg transition-all font-medium text-sm">
+                                    <i class="fas fa-eye mr-1.5"></i>View
+                                </button>
+                                <button onclick="deleteDocument('${doc.id}')" 
+                                    class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition-all font-medium text-sm">
+                                    <i class="fas fa-trash mr-1.5"></i>Delete
+                                </button>
                             </div>
                         </div>
-                        <button onclick="deleteDocument('${doc.id}')" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-all">
-                            <i class="fas fa-trash text-lg"></i>
-                        </button>
                     </div>
                 `;
             }).join('');
+            
+            container.innerHTML = summaryHtml + documentsHtml;
         } else {
             container.innerHTML = `
-                <div class="text-center py-8 text-gray-500">
-                    <i class="fas fa-file-upload text-4xl mb-2"></i>
-                    <p>No documents uploaded yet</p>
-                    <p class="text-sm">Upload your first document to get started</p>
+                <div class="text-center py-12 text-gray-500">
+                    <div class="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-file-upload text-4xl text-gray-400"></i>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-700 mb-2">No documents uploaded yet</p>
+                    <p class="text-sm text-gray-500">Upload your first document to build your AI knowledge base</p>
                 </div>
             `;
         }
@@ -790,8 +848,12 @@ async function refreshDocumentsList() {
     } catch (error) {
         console.error('Error loading documents:', error);
         container.innerHTML = `
-            <div class="text-center py-8 text-gray-500">
-                <p>Unable to load documents</p>
+            <div class="text-center py-12 text-gray-500">
+                <div class="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-exclamation-triangle text-4xl text-red-400"></i>
+                </div>
+                <p class="text-lg font-semibold text-gray-700 mb-2">Unable to load documents</p>
+                <p class="text-sm text-gray-500">${error.message}</p>
             </div>
         `;
     }
@@ -839,6 +901,132 @@ function deleteDocument(docId) {
     if (confirm('Are you sure you want to delete this document?')) {
         alert(`Delete document ${docId}\n(Feature coming soon)`);
         // TODO: Implement DELETE /api/documents/:id endpoint
+    }
+}
+
+/**
+ * View document details
+ */
+async function viewDocumentDetails(docId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/documents/${docId}`);
+        if (!response.ok) throw new Error('Failed to fetch document details');
+        
+        const data = await response.json();
+        
+        if (data.success && data.document) {
+            const doc = data.document;
+            const chunks = data.chunks || [];
+            
+            let detailsHtml = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-2xl font-bold mb-2">${doc.filename}</h3>
+                                    <p class="text-blue-100 text-sm">Document Details & Vector Information</p>
+                                </div>
+                                <button onclick="closeDocumentDetails()" class="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition-all">
+                                    <i class="fas fa-times text-2xl"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                            <!-- Document Info -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gray-50 p-4 rounded-xl">
+                                    <p class="text-xs text-gray-500 mb-1">File Size</p>
+                                    <p class="text-lg font-bold text-gray-900">${formatFileSize(doc.size)}</p>
+                                </div>
+                                <div class="bg-blue-50 p-4 rounded-xl">
+                                    <p class="text-xs text-blue-600 mb-1">Chunks</p>
+                                    <p class="text-lg font-bold text-blue-700">${doc.chunk_count || 0}</p>
+                                </div>
+                                <div class="bg-indigo-50 p-4 rounded-xl">
+                                    <p class="text-xs text-indigo-600 mb-1">Vectors</p>
+                                    <p class="text-lg font-bold text-indigo-700">${doc.vector_count || 0}</p>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-xl">
+                                    <p class="text-xs text-green-600 mb-1">Status</p>
+                                    <p class="text-lg font-bold text-green-700">Active</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Metadata -->
+                            <div class="bg-gray-50 rounded-xl p-5 mb-6">
+                                <h4 class="font-bold text-gray-900 mb-3 flex items-center">
+                                    <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                    Metadata
+                                </h4>
+                                <div class="grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <span class="text-gray-500">File Type:</span>
+                                        <span class="ml-2 font-medium text-gray-900">${doc.file_type || 'Unknown'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Uploaded:</span>
+                                        <span class="ml-2 font-medium text-gray-900">${doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : 'Unknown'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Document ID:</span>
+                                        <span class="ml-2 font-mono text-xs text-gray-700">${doc.id}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Chunks Preview -->
+                            ${chunks.length > 0 ? `
+                            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                                <h4 class="font-bold text-gray-900 mb-4 flex items-center">
+                                    <i class="fas fa-th-list text-indigo-500 mr-2"></i>
+                                    Text Chunks (${chunks.length})
+                                </h4>
+                                <div class="space-y-3 max-h-96 overflow-y-auto">
+                                    ${chunks.map((chunk, idx) => `
+                                        <div class="bg-gradient-to-r from-gray-50 to-white p-4 rounded-lg border border-gray-200">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-bold text-gray-500">Chunk ${idx + 1}</span>
+                                                <span class="text-xs text-gray-400">${chunk.text ? chunk.text.length : 0} characters</span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 leading-relaxed">${chunk.text ? chunk.text.substring(0, 200) + (chunk.text.length > 200 ? '...' : '') : 'No text'}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            ` : `
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 text-2xl mb-2"></i>
+                                <p class="text-sm text-yellow-700">No chunks available for this document</p>
+                            </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add to body
+            const modal = document.createElement('div');
+            modal.id = 'document-details-modal';
+            modal.innerHTML = detailsHtml;
+            document.body.appendChild(modal);
+        } else {
+            alert('Failed to load document details');
+        }
+    } catch (error) {
+        console.error('Error viewing document details:', error);
+        alert('Failed to load document details: ' + error.message);
+    }
+}
+
+/**
+ * Close document details modal
+ */
+function closeDocumentDetails() {
+    const modal = document.getElementById('document-details-modal');
+    if (modal) {
+        modal.remove();
     }
 }
 
@@ -899,6 +1087,7 @@ function getAppointmentStatusBadge(status) {
 }
 
 /**
+/**
  * View call details (with conversation and insights)
  */
 async function viewCallDetails(callId) {
@@ -918,6 +1107,9 @@ async function viewCallDetails(callId) {
         alert('Failed to load call details. Please try again.');
     }
 }
+
+// Make function globally accessible
+window.viewCallDetails = viewCallDetails;
 
 /**
  * Show call details in a modal
@@ -1078,6 +1270,9 @@ function closeCallDetailsModal(event) {
     }
 }
 
+// Make function globally accessible
+window.closeCallDetailsModal = closeCallDetailsModal;
+
 /**
  * Get language name from code
  */
@@ -1134,6 +1329,9 @@ function viewLeadDetails(leadId) {
     alert(`View lead details: ${leadId}\n(Feature coming soon)`);
 }
 
+// Make function globally accessible
+window.viewLeadDetails = viewLeadDetails;
+
 /**
  * Open booking modal
  */
@@ -1152,6 +1350,9 @@ function openBookingModal() {
     }
 }
 
+// Make function globally accessible
+window.openBookingModal = openBookingModal;
+
 /**
  * Close booking modal
  */
@@ -1166,6 +1367,9 @@ function closeBookingModal() {
         }
     }
 }
+
+// Make function globally accessible
+window.closeBookingModal = closeBookingModal;
 
 /**
  * Submit booking form

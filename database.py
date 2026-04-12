@@ -19,8 +19,8 @@ class DatabaseService:
         user: str = "postgres",
         password: Optional[str] = None,
         sslmode: Optional[str] = None,
-        min_size: int = 10,
-        max_size: int = 50
+        min_size: int = 1,
+        max_size: int = 3
     ):
         """
         Initialize database service with connection pooling.

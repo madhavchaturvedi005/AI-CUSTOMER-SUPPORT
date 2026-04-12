@@ -5,7 +5,7 @@ import os
 import json
 import websockets
 from fastapi import FastAPI, WebSocket, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from twilio.twiml.voice_response import VoiceResponse, Connect
@@ -58,7 +58,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for frontend
+# Serve login page at root
+@app.get("/login.html")
+async def serve_login():
+    """Serve the login page."""
+    return FileResponse("frontend/login.html")
+
+# Serve dashboard at root
+@app.get("/index.html")
+async def serve_dashboard():
+    """Serve the dashboard page."""
+    return FileResponse("frontend/index.html")
+
+# Redirect root to login
+@app.get("/")
+async def root():
+    """Redirect root to login page."""
+    return RedirectResponse(url="/login.html")
+
+# Mount static files for frontend assets (CSS, JS, etc.)
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 # Global service instances (will be initialized on startup)
@@ -69,6 +87,7 @@ call_router = None
 database_service = None
 redis_service = None
 appointment_manager = None
+vector_service = None
 
 
 @app.on_event("startup")
@@ -219,6 +238,111 @@ async def startup_event():
     print("   • AppointmentManager: Ready (tool calling enabled)")
     print(f"   • Database: {'PostgreSQL' if use_real_db else 'Mock'}")
     print(f"   • Cache: {'Redis' if use_real_redis else 'Mock'}")
+
+
+# ============================================
+# Authentication System
+# ============================================
+
+# Simple in-memory session storage (use Redis in production)
+active_sessions = {}
+
+# Hardcoded credentials (use database in production)
+VALID_CREDENTIALS = {
+    "madhav5": "M@dhav0505@#"
+}
+
+def generate_token():
+    """Generate a simple session token."""
+    import secrets
+    return secrets.token_urlsafe(32)
+
+def verify_token(token: str) -> bool:
+    """Verify if a token is valid."""
+    return token in active_sessions
+
+@app.post("/api/login")
+async def login(request: Request) -> JSONResponse:
+    """
+    Login endpoint for dashboard authentication.
+    """
+    try:
+        data = await request.json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        # Validate credentials
+        if username in VALID_CREDENTIALS and VALID_CREDENTIALS[username] == password:
+            # Generate session token
+            token = generate_token()
+            active_sessions[token] = {
+                "username": username,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            return JSONResponse(content={
+                "success": True,
+                "token": token,
+                "username": username,
+                "message": "Login successful"
+            })
+        else:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "error": "Invalid username or password"
+                }
+            )
+    except Exception as e:
+        print(f"❌ Login error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "Internal server error"
+            }
+        )
+
+@app.post("/api/logout")
+async def logout(request: Request) -> JSONResponse:
+    """
+    Logout endpoint to invalidate session.
+    """
+    try:
+        data = await request.json()
+        token = data.get('token')
+        
+        if token and token in active_sessions:
+            del active_sessions[token]
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Logged out successfully"
+        })
+    except Exception as e:
+        print(f"❌ Logout error: {e}")
+        return JSONResponse(content={
+            "success": True,
+            "message": "Logged out"
+        })
+
+@app.get("/api/verify-session")
+async def verify_session(token: str = None) -> JSONResponse:
+    """
+    Verify if a session token is valid.
+    """
+    if token and verify_token(token):
+        session = active_sessions[token]
+        return JSONResponse(content={
+            "valid": True,
+            "username": session["username"]
+        })
+    else:
+        return JSONResponse(
+            status_code=401,
+            content={"valid": False}
+        )
 
 
 @app.get("/", response_class=JSONResponse)
@@ -1631,8 +1755,16 @@ async def get_documents() -> JSONResponse:
     try:
         documents = []
         
-        # Try to get from database if available
-        if database_service and not isinstance(database_service, AsyncMock):
+        # Try to get from Qdrant vector service first
+        if vector_service:
+            try:
+                documents = await vector_service.list_documents()
+                print(f"✅ Loaded {len(documents)} documents from Qdrant")
+            except Exception as qdrant_error:
+                print(f"⚠️  Qdrant error loading documents: {qdrant_error}")
+        
+        # Fallback to database if Qdrant didn't return documents
+        if not documents and database_service and not isinstance(database_service, AsyncMock):
             try:
                 async with database_service.pool.acquire() as conn:
                     rows = await conn.fetch("""
@@ -1661,7 +1793,8 @@ async def get_documents() -> JSONResponse:
         return JSONResponse(content={
             "success": True,
             "documents": documents,
-            "count": len(documents)
+            "count": len(documents),
+            "total_chunks": sum(doc.get("chunk_count", 0) for doc in documents)
         })
         
     except Exception as e:
@@ -1832,6 +1965,134 @@ async def upload_documents(files: List[UploadFile] = File(...)) -> JSONResponse:
         traceback.print_exc()
         return JSONResponse(
             status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/documents/{document_id}")
+async def get_document_details(document_id: str) -> JSONResponse:
+    """
+    Get detailed information about a specific document including chunks.
+    
+    Args:
+        document_id: Document UUID or identifier
+        
+    Returns:
+        Document details with chunks and vector information
+    """
+    try:
+        document_info = None
+        chunks = []
+        
+        # Try to get from Qdrant vector service first
+        if vector_service:
+            try:
+                # Get all points for this document
+                results = vector_service.client.scroll(
+                    collection_name=vector_service.collection_name,
+                    scroll_filter={
+                        "must": [
+                            {
+                                "key": "document_id",
+                                "match": {"value": document_id}
+                            }
+                        ]
+                    },
+                    limit=1000,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                points = results[0]
+                
+                if points:
+                    # Get document info from first point
+                    first_point = points[0]
+                    metadata = first_point.payload.get("metadata", {})
+                    
+                    document_info = {
+                        "id": document_id,
+                        "filename": metadata.get("filename", document_id),
+                        "file_type": metadata.get("file_type", "unknown"),
+                        "uploaded_at": metadata.get("uploaded_at"),
+                        "size": metadata.get("size", 0),
+                        "chunk_count": len(points),
+                        "vector_count": len(points)
+                    }
+                    
+                    # Extract chunks
+                    for point in points:
+                        chunk_text = point.payload.get("text", "")
+                        chunk_index = point.payload.get("chunk_index", 0)
+                        chunks.append({
+                            "index": chunk_index,
+                            "text": chunk_text,
+                            "point_id": str(point.id)
+                        })
+                    
+                    # Sort chunks by index
+                    chunks.sort(key=lambda x: x.get("index", 0))
+                    
+                    print(f"✅ Loaded document {document_id} with {len(chunks)} chunks from Qdrant")
+                else:
+                    print(f"⚠️  Document {document_id} not found in Qdrant")
+                    
+            except Exception as qdrant_error:
+                print(f"⚠️  Qdrant error loading document: {qdrant_error}")
+        
+        # Fallback to database if Qdrant didn't return data
+        if not document_info and database_service and not isinstance(database_service, AsyncMock):
+            try:
+                async with database_service.pool.acquire() as conn:
+                    row = await conn.fetchrow("""
+                        SELECT id, filename, file_type, uploaded_at, 
+                               content, LENGTH(content) as size, active
+                        FROM knowledge_base
+                        WHERE id = $1::uuid AND active = TRUE
+                    """, document_id)
+                    
+                    if row:
+                        document_info = {
+                            "id": str(row['id']),
+                            "filename": row['filename'],
+                            "file_type": row['file_type'],
+                            "size": row['size'],
+                            "uploaded_at": row['uploaded_at'].isoformat() if row['uploaded_at'] else None,
+                            "active": row['active']
+                        }
+                        
+                        # Split content into chunks for preview
+                        content = row['content']
+                        if content:
+                            chunk_size = 500
+                            for i in range(0, len(content), chunk_size):
+                                chunks.append({
+                                    "index": i // chunk_size,
+                                    "text": content[i:i+chunk_size]
+                                })
+                        
+                        print(f"✅ Loaded document {document_id} from database")
+            except Exception as db_error:
+                print(f"⚠️  Database error loading document: {db_error}")
+        
+        if not document_info:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Document not found"}
+            )
+        
+        return JSONResponse(content={
+            "success": True,
+            "document": document_info,
+            "chunks": chunks[:50]  # Limit to first 50 chunks for performance
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting document details: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
             content={"success": False, "error": str(e)}
         )
 

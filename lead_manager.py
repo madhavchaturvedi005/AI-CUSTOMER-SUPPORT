@@ -289,6 +289,65 @@ class LeadManager:
             print(f"   Email: {lead.email}")
             print(f"   Inquiry: {lead.inquiry_details[:100]}...")
     
+    async def capture_lead(
+        self,
+        call_id: Optional[str],
+        name: str,
+        phone: str,
+        email: Optional[str] = None,
+        inquiry_details: str = "",
+        budget_indication: Optional[str] = None,
+        timeline: Optional[str] = None,
+        decision_authority: bool = False,
+        lead_score: Optional[int] = None
+    ) -> str:
+        """
+        Capture a lead directly with provided information.
+        
+        This is a simplified method for tool calling that doesn't require
+        conversation history analysis.
+        
+        Args:
+            call_id: Unique identifier for the call (optional)
+            name: Lead's name
+            phone: Lead's phone number
+            email: Lead's email address (optional)
+            inquiry_details: Details of the inquiry
+            budget_indication: Budget indication (low/medium/high)
+            timeline: Timeline for purchase
+            decision_authority: Whether lead has decision authority
+            lead_score: Pre-calculated lead score (optional)
+            
+        Returns:
+            Lead ID from database
+        """
+        # Create lead data
+        lead = LeadData(
+            name=name,
+            phone=phone,
+            email=email,
+            inquiry_details=inquiry_details or "Lead captured via voice call",
+            budget_indication=budget_indication,
+            timeline=timeline,
+            decision_authority=decision_authority,
+            source="voice_call"
+        )
+        
+        # Calculate score if not provided
+        if lead_score is not None:
+            lead.lead_score = max(1, min(10, lead_score))
+        else:
+            await self.score_lead(lead)
+        
+        # Save lead
+        lead_id = await self.save_lead(call_id or "", lead)
+        
+        # Trigger notification for high-value leads
+        if self.is_high_value_lead(lead):
+            await self.trigger_high_value_notification(lead)
+        
+        return lead_id
+    
     # Private helper methods for information extraction
     
     def _extract_name(self, conversation_history: list[Dict[str, Any]]) -> Optional[str]:

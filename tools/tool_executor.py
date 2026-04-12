@@ -12,7 +12,8 @@ class ToolExecutor:
         self,
         appointment_manager=None,
         database=None,
-        lead_manager=None
+        lead_manager=None,
+        vector_service=None
     ):
         """
         Initialize ToolExecutor with service dependencies.
@@ -21,13 +22,16 @@ class ToolExecutor:
             appointment_manager: AppointmentManager instance
             database: DatabaseService instance
             lead_manager: LeadManager instance
+            vector_service: VectorService instance for RAG
         """
         self.appointment_manager = appointment_manager
         self.database = database
         self.lead_manager = lead_manager
+        self.vector_service = vector_service
         
         # Map tool names to execution functions
         self.tools = {
+            "search_knowledge_base": self.search_knowledge_base,
             "check_availability": self.check_availability,
             "get_available_slots": self.get_available_slots,
             "book_appointment": self.book_appointment,
@@ -83,6 +87,18 @@ class ToolExecutor:
                 "tool": tool_name,
                 "error": str(e)
             }
+    
+    async def search_knowledge_base(
+        self,
+        args: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Search knowledge base using RAG."""
+        if not self.vector_service:
+            return {"error": "Vector service not available"}
+        
+        from tools.rag_tool import execute_search_knowledge_base
+        return await execute_search_knowledge_base(args, self.vector_service)
     
     async def check_availability(
         self,

@@ -12,6 +12,12 @@ class ToolDefinition(BaseModel):
     parameters: Dict[str, Any]
 
 
+# RAG Tool (Knowledge Base Search)
+from tools.rag_tool import SEARCH_KNOWLEDGE_BASE_TOOL
+
+RAG_TOOLS = [SEARCH_KNOWLEDGE_BASE_TOOL]
+
+
 # Appointment Management Tools
 APPOINTMENT_TOOLS = [
     ToolDefinition(
@@ -172,4 +178,4 @@ CUSTOMER_TOOLS = [
 
 
 # Combine all tools
-ALL_TOOLS = APPOINTMENT_TOOLS + LEAD_TOOLS + CUSTOMER_TOOLS
+ALL_TOOLS = RAG_TOOLS + APPOINTMENT_TOOLS + LEAD_TOOLS + CUSTOMER_TOOLS

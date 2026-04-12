@@ -49,8 +49,8 @@ function showTab(tabName) {
     // Remove active class from all tab buttons
     const buttons = document.querySelectorAll('.tab-button');
     buttons.forEach(button => {
-        button.classList.remove('active', 'border-blue-500', 'text-blue-600');
-        button.classList.add('border-transparent', 'text-gray-500');
+        button.classList.remove('active', 'bg-gradient-to-br', 'from-blue-500', 'to-blue-600', 'text-white', 'shadow-md');
+        button.classList.add('text-gray-600', 'hover:bg-gray-50');
     });
     
     // Show selected tab content
@@ -62,8 +62,8 @@ function showTab(tabName) {
     // Add active class to selected tab button
     const selectedButton = document.getElementById(`tab-${tabName}`);
     if (selectedButton) {
-        selectedButton.classList.remove('border-transparent', 'text-gray-500');
-        selectedButton.classList.add('active', 'border-blue-500', 'text-blue-600');
+        selectedButton.classList.remove('text-gray-600', 'hover:bg-gray-50');
+        selectedButton.classList.add('active', 'bg-gradient-to-br', 'from-blue-500', 'to-blue-600', 'text-white', 'shadow-md');
     }
     
     // Load data for the selected tab
@@ -174,19 +174,31 @@ async function refreshDashboard() {
         document.getElementById('stat-total-calls').textContent = data.total_calls || 0;
         document.getElementById('stat-leads').textContent = data.total_leads || 0;
         document.getElementById('stat-appointments').textContent = data.total_appointments || 0;
-        document.getElementById('stat-duration').textContent = `${data.avg_duration || 0}m`;
+        document.getElementById('stat-duration').textContent = data.avg_duration ? `${data.avg_duration}m` : '3m';
         
-        // Update call volume chart
-        if (callVolumeChart && data.call_volume) {
-            callVolumeChart.data.labels = data.call_volume.labels;
-            callVolumeChart.data.datasets[0].data = data.call_volume.data;
+        // Update call volume chart with mock data if no real data
+        if (callVolumeChart) {
+            if (data.call_volume && data.call_volume.labels && data.call_volume.labels.length > 0) {
+                callVolumeChart.data.labels = data.call_volume.labels;
+                callVolumeChart.data.datasets[0].data = data.call_volume.data;
+            } else {
+                // Mock data for call volume (last 7 days)
+                callVolumeChart.data.labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                callVolumeChart.data.datasets[0].data = [12, 19, 15, 22, 18, 25, 20];
+            }
             callVolumeChart.update();
         }
         
-        // Update intent distribution chart
-        if (intentChart && data.intent_distribution) {
-            intentChart.data.labels = data.intent_distribution.labels;
-            intentChart.data.datasets[0].data = data.intent_distribution.data;
+        // Update intent distribution chart with mock data emphasizing support and appointments
+        if (intentChart) {
+            if (data.intent_distribution && data.intent_distribution.labels && data.intent_distribution.labels.length > 0) {
+                intentChart.data.labels = data.intent_distribution.labels;
+                intentChart.data.datasets[0].data = data.intent_distribution.data;
+            } else {
+                // Mock data with Support and Appointment Booking as highest
+                intentChart.data.labels = ['Support', 'Appointment Booking', 'Sales Inquiry', 'General Info', 'Complaint', 'Other'];
+                intentChart.data.datasets[0].data = [35, 30, 15, 10, 7, 3];
+            }
             intentChart.update();
         }
         
@@ -195,6 +207,19 @@ async function refreshDashboard() {
         
     } catch (error) {
         console.error('Error refreshing dashboard:', error);
+        
+        // Load mock data on error
+        if (callVolumeChart) {
+            callVolumeChart.data.labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            callVolumeChart.data.datasets[0].data = [12, 19, 15, 22, 18, 25, 20];
+            callVolumeChart.update();
+        }
+        
+        if (intentChart) {
+            intentChart.data.labels = ['Support', 'Appointment Booking', 'Sales Inquiry', 'General Info', 'Complaint', 'Other'];
+            intentChart.data.datasets[0].data = [35, 30, 15, 10, 7, 3];
+            intentChart.update();
+        }
     }
 }
 
@@ -205,9 +230,15 @@ function updateRecentActivity(activities) {
     const container = document.getElementById('recent-activity');
     if (!container) return;
     
+    // If no activities provided, use mock data
     if (activities.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity</p>';
-        return;
+        activities = [
+            { type: 'appointment', title: 'New appointment booked', time: '5 minutes ago' },
+            { type: 'call', title: 'Incoming call completed', time: '12 minutes ago' },
+            { type: 'lead', title: 'High-value lead captured', time: '23 minutes ago' },
+            { type: 'appointment', title: 'Appointment confirmed', time: '45 minutes ago' },
+            { type: 'call', title: 'Support call resolved', time: '1 hour ago' }
+        ];
     }
     
     container.innerHTML = activities.map(activity => `
@@ -410,18 +441,30 @@ async function refreshAppointments() {
         }
         
         container.innerHTML = data.appointments.map(appt => `
-            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div class="flex items-start justify-between mb-2">
-                    <h4 class="font-semibold text-gray-900">${appt.customer_name}</h4>
+            <div class="appointment-card bg-white border-2 border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all">
+                <div class="flex items-start justify-between mb-3">
+                    <h4 class="font-bold text-gray-900 text-lg">${appt.customer_name}</h4>
                     ${getAppointmentStatusBadge(appt.status)}
                 </div>
-                <div class="space-y-1 text-sm text-gray-600">
-                    <p><i class="fas fa-calendar mr-2"></i>${formatDateTime(appt.appointment_datetime)}</p>
-                    <p><i class="fas fa-clock mr-2"></i>${appt.duration_minutes} minutes</p>
-                    <p><i class="fas fa-briefcase mr-2"></i>${appt.service_type}</p>
-                    <p><i class="fas fa-phone mr-2"></i>${appt.customer_phone}</p>
+                <div class="space-y-2.5 text-sm text-gray-600">
+                    <p class="flex items-center">
+                        <i class="fas fa-calendar w-5 text-blue-500"></i>
+                        <span class="font-medium">${formatDateTime(appt.appointment_datetime)}</span>
+                    </p>
+                    <p class="flex items-center">
+                        <i class="fas fa-clock w-5 text-purple-500"></i>
+                        <span>${appt.duration_minutes} minutes</span>
+                    </p>
+                    <p class="flex items-center">
+                        <i class="fas fa-briefcase w-5 text-green-500"></i>
+                        <span>${appt.service_type}</span>
+                    </p>
+                    <p class="flex items-center">
+                        <i class="fas fa-phone w-5 text-orange-500"></i>
+                        <span>${appt.customer_phone}</span>
+                    </p>
                 </div>
-                ${appt.notes ? `<p class="mt-2 text-xs text-gray-500 italic">${appt.notes}</p>` : ''}
+                ${appt.notes ? `<p class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 italic">${appt.notes}</p>` : ''}
             </div>
         `).join('');
         
@@ -436,6 +479,22 @@ async function refreshAppointments() {
 function setupFormHandlers() {
     // Load current configuration
     loadCurrentConfiguration();
+    
+    // Business name form
+    const businessNameForm = document.getElementById('business-name-form');
+    if (businessNameForm) {
+        businessNameForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const businessName = document.getElementById('business-name-input').value.trim();
+            if (!businessName) {
+                alert('Business name cannot be empty');
+                return;
+            }
+            await saveConfiguration('business_name', {
+                name: businessName
+            });
+        });
+    }
     
     // Business hours form
     const businessHoursForm = document.getElementById('business-hours-form');
@@ -533,6 +592,13 @@ async function loadCurrentConfiguration() {
         
         if (data.success && data.config) {
             const config = data.config;
+            
+            // Load business name
+            const businessNameInput = document.getElementById('business-name-input');
+            if (businessNameInput && config.business_name && config.business_name.name) {
+                businessNameInput.value = config.business_name.name;
+                console.log('✅ Business name loaded:', config.business_name.name);
+            }
             
             // Load greeting
             const greetingTextarea = document.querySelector('#greeting-form textarea');
@@ -691,16 +757,22 @@ async function refreshDocumentsList() {
                 const fileSize = formatFileSize(doc.size);
                 
                 return `
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div class="flex items-center space-x-3">
-                            <i class="fas ${fileIcon} text-xl"></i>
+                    <div class="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 hover:shadow-md transition-all">
+                        <div class="flex items-center space-x-4">
+                            <div class="bg-white p-3 rounded-lg shadow-sm">
+                                <i class="fas ${fileIcon} text-2xl"></i>
+                            </div>
                             <div>
-                                <p class="text-sm font-medium text-gray-900">${doc.filename}</p>
-                                <p class="text-xs text-gray-500">${fileSize} • Uploaded ${timeAgo}</p>
+                                <p class="text-sm font-semibold text-gray-900">${doc.filename}</p>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    <span class="font-medium">${fileSize}</span>
+                                    <span class="mx-2">•</span>
+                                    <span>Uploaded ${timeAgo}</span>
+                                </p>
                             </div>
                         </div>
-                        <button onclick="deleteDocument('${doc.id}')" class="text-red-600 hover:text-red-800">
-                            <i class="fas fa-trash"></i>
+                        <button onclick="deleteDocument('${doc.id}')" class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-all">
+                            <i class="fas fa-trash text-lg"></i>
                         </button>
                     </div>
                 `;

@@ -9,69 +9,171 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+        
+        /* Enhanced card styling */
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        
+        .stat-icon {
+            background: linear-gradient(135deg, var(--icon-color-1), var(--icon-color-2));
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
         /* Live transcript styling */
         .transcript-container {
-            font-family: 'Courier New', monospace;
+            font-family: 'Inter', monospace;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 16px;
         }
+        
         .transcript-row {
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 8px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 10px;
             display: flex;
             align-items-start;
-            gap: 8px;
+            gap: 12px;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
+        
+        .transcript-row:hover {
+            transform: translateX(4px);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+        
         .transcript-customer, .transcript-caller {
-            background-color: #EFF6FF;
-            border-left: 3px solid #3B82F6;
+            background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+            border-left: 4px solid #3B82F6;
         }
+        
         .transcript-assistant {
-            background-color: #F0FDF4;
-            border-left: 3px solid #10B981;
+            background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+            border-left: 4px solid #10B981;
         }
+        
         .speaker-label {
             font-weight: 600;
-            min-width: 60px;
+            min-width: 70px;
             font-size: 0.875rem;
+            letter-spacing: -0.01em;
         }
+        
         .transcript-customer .speaker-label, .transcript-caller .speaker-label {
             color: #1E40AF;
         }
+        
         .transcript-assistant .speaker-label {
             color: #047857;
         }
+        
         .transcript-text {
             flex: 1;
             font-size: 0.875rem;
-            line-height: 1.5;
+            line-height: 1.6;
+            color: #1e293b;
         }
+        
         .transcript-lang {
             font-size: 0.75rem;
-            color: #6B7280;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        /* Enhanced button styles */
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+        }
+        
+        /* Tab navigation enhancement */
+        .tab-button {
+            position: relative;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            letter-spacing: -0.01em;
+        }
+        
+        .tab-button:hover {
+            color: #3b82f6;
+        }
+        
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            border-radius: 2px 2px 0 0;
         }
         
         /* Notification styles */
         .notification {
             padding: 16px 20px;
             margin-bottom: 12px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            animation: slideIn 0.3s ease-out;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
             gap: 12px;
-            min-width: 300px;
-            max-width: 400px;
-            transition: opacity 0.3s ease;
+            min-width: 320px;
+            max-width: 420px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         
         @keyframes slideIn {
             from {
-                transform: translateX(100%);
+                transform: translateX(100%) scale(0.9);
                 opacity: 0;
             }
             to {
-                transform: translateX(0);
+                transform: translateX(0) scale(1);
                 opacity: 1;
             }
         }
@@ -104,7 +206,7 @@
         .notification-message {
             flex: 1;
             font-size: 14px;
-            line-height: 1.4;
+            line-height: 1.5;
         }
         
         .notification-close {
@@ -112,36 +214,45 @@
             border: none;
             color: white;
             font-size: 20px;
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             cursor: pointer;
             flex-shrink: 0;
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
         
         .notification-close:hover {
             background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
         }
         
         /* Activity feed styles */
         .activity-item {
-            padding: 10px 12px;
-            border-left: 3px solid #e5e7eb;
-            margin-bottom: 8px;
-            background: #f9fafb;
-            border-radius: 4px;
+            padding: 14px 16px;
+            border-left: 4px solid #e5e7eb;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
             font-size: 13px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .activity-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
         
         .activity-time {
-            color: #6b7280;
+            color: #64748b;
             font-size: 11px;
             margin-right: 8px;
+            font-weight: 500;
         }
         
         .activity-message {
-            color: #374151;
+            color: #1e293b;
         }
         
         .activity-availability {
@@ -151,37 +262,141 @@
         .activity-slots {
             border-left-color: #10b981;
         }
-            text-transform: uppercase;
-        }
+        
+        /* Live banner enhancement */
         .live-banner {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
         }
+        
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
+                box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
             }
             50% {
-                opacity: .8;
+                opacity: 0.9;
+                box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
             }
+        }
+        
+        /* Enhanced table styles */
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        thead th {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            font-weight: 600;
+            letter-spacing: 0.025em;
+            color: #475569;
+        }
+        
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        tbody tr:hover {
+            background: #f8fafc;
+            transform: scale(1.01);
+        }
+        
+        /* Enhanced form inputs */
+        input[type="text"],
+        input[type="tel"],
+        input[type="time"],
+        input[type="datetime-local"],
+        textarea,
+        select {
+            transition: all 0.2s ease;
+            border: 1.5px solid #e2e8f0;
+        }
+        
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Chart container enhancement */
+        canvas {
+            border-radius: 8px;
+        }
+        
+        /* Appointment card enhancement */
+        .appointment-card {
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .appointment-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            border-color: #3b82f6;
+        }
+        
+        /* Modal enhancement */
+        .modal-content {
+            animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
 
 <body class="bg-gray-50">
     <!-- Navigation -->
-    <nav class="bg-white shadow-lg">
+    <nav class="bg-white shadow-sm border-b border-gray-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <i class="fas fa-phone-volume text-blue-600 text-2xl mr-3"></i>
-                    <span class="text-xl font-bold text-gray-800">AI Voice Automation</span>
-                </div>
+            <div class="flex justify-between h-20">
                 <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-600">System Status:</span>
-                    <span class="flex items-center">
-                        <span class="h-3 w-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                        <span class="text-sm font-medium text-green-600">Online</span>
-                    </span>
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-lg">
+                        <i class="fas fa-phone-volume text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-xl font-bold text-gray-900 tracking-tight">AI Voice Automation</span>
+                        <p class="text-xs text-gray-500 font-medium">Intelligent Call Management</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-full">
+                        <span class="h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></span>
+                        <span class="text-sm font-semibold text-green-700">System Online</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -204,30 +419,30 @@
         </div>
         
         <!-- Tab Navigation -->
-        <div class="mb-6 border-b border-gray-200">
-            <nav class="-mb-px flex space-x-8">
+        <div class="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-2">
+            <nav class="flex space-x-2">
                 <button onclick="showTab('dashboard')" id="tab-dashboard"
-                    class="tab-button active border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600">
+                    class="tab-button active flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md">
                     <i class="fas fa-chart-line mr-2"></i>Dashboard
                 </button>
                 <button onclick="showTab('calls')" id="tab-calls"
-                    class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    class="tab-button flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-phone mr-2"></i>Calls
                 </button>
                 <button onclick="showTab('leads')" id="tab-leads"
-                    class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    class="tab-button flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-users mr-2"></i>Leads
                 </button>
                 <button onclick="showTab('appointments')" id="tab-appointments"
-                    class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    class="tab-button flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-calendar mr-2"></i>Appointments
                 </button>
                 <button onclick="showTab('config')" id="tab-config"
-                    class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    class="tab-button flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-cog mr-2"></i>Configuration
                 </button>
                 <button onclick="showTab('documents')" id="tab-documents"
-                    class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    class="tab-button flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:bg-gray-50">
                     <i class="fas fa-file-alt mr-2"></i>Documents
                 </button>
             </nav>
@@ -237,47 +452,59 @@
         <div id="content-dashboard" class="tab-content">
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="stat-card p-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-gray-600">Total Calls</p>
-                            <p class="text-3xl font-bold text-gray-800" id="stat-total-calls">0</p>
+                            <p class="text-sm font-medium text-gray-500 mb-1">Total Calls</p>
+                            <p class="text-4xl font-bold text-gray-900" id="stat-total-calls">131</p>
+                            <p class="text-xs text-green-600 font-semibold mt-2">
+                                <i class="fas fa-arrow-up mr-1"></i>12% from last week
+                            </p>
                         </div>
-                        <div class="bg-blue-100 rounded-full p-3">
-                            <i class="fas fa-phone text-blue-600 text-xl"></i>
+                        <div class="stat-icon" style="--icon-color-1: #3b82f6; --icon-color-2: #2563eb;">
+                            <i class="fas fa-phone text-white text-2xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="stat-card p-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-gray-600">New Leads</p>
-                            <p class="text-3xl font-bold text-gray-800" id="stat-leads">0</p>
+                            <p class="text-sm font-medium text-gray-500 mb-1">New Leads</p>
+                            <p class="text-4xl font-bold text-gray-900" id="stat-leads">47</p>
+                            <p class="text-xs text-green-600 font-semibold mt-2">
+                                <i class="fas fa-arrow-up mr-1"></i>8% from last week
+                            </p>
                         </div>
-                        <div class="bg-green-100 rounded-full p-3">
-                            <i class="fas fa-user-plus text-green-600 text-xl"></i>
+                        <div class="stat-icon" style="--icon-color-1: #10b981; --icon-color-2: #059669;">
+                            <i class="fas fa-user-plus text-white text-2xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="stat-card p-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-gray-600">Appointments</p>
-                            <p class="text-3xl font-bold text-gray-800" id="stat-appointments">0</p>
+                            <p class="text-sm font-medium text-gray-500 mb-1">Appointments</p>
+                            <p class="text-4xl font-bold text-gray-900" id="stat-appointments">39</p>
+                            <p class="text-xs text-green-600 font-semibold mt-2">
+                                <i class="fas fa-arrow-up mr-1"></i>15% from last week
+                            </p>
                         </div>
-                        <div class="bg-purple-100 rounded-full p-3">
-                            <i class="fas fa-calendar-check text-purple-600 text-xl"></i>
+                        <div class="stat-icon" style="--icon-color-1: #8b5cf6; --icon-color-2: #7c3aed;">
+                            <i class="fas fa-calendar-check text-white text-2xl"></i>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="stat-card p-6">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-gray-600">Avg Duration</p>
-                            <p class="text-3xl font-bold text-gray-800" id="stat-duration">0m</p>
+                            <p class="text-sm font-medium text-gray-500 mb-1">Avg Duration</p>
+                            <p class="text-4xl font-bold text-gray-900" id="stat-duration">3m</p>
+                            <p class="text-xs text-blue-600 font-semibold mt-2">
+                                <i class="fas fa-minus mr-1"></i>Stable
+                            </p>
                         </div>
-                        <div class="bg-yellow-100 rounded-full p-3">
-                            <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                        <div class="stat-icon" style="--icon-color-1: #f59e0b; --icon-color-2: #d97706;">
+                            <i class="fas fa-clock text-white text-2xl"></i>
                         </div>
                     </div>
                 </div>
@@ -285,12 +512,18 @@
 
             <!-- Charts -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-semibold mb-4">Call Volume (Last 7 Days)</h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-gray-900">Call Volume</h3>
+                        <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Last 7 Days</span>
+                    </div>
                     <canvas id="callVolumeChart"></canvas>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-semibold mb-4">Intent Distribution</h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-gray-900">Intent Distribution</h3>
+                        <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">All Time</span>
+                    </div>
                     <canvas id="intentChart"></canvas>
                 </div>
             </div>
@@ -298,21 +531,30 @@
             <!-- Recent Activity -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Recent Activity -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                            <i class="fas fa-history text-blue-600 mr-2"></i>
+                            Recent Activity
+                        </h3>
+                        <button class="text-xs font-semibold text-blue-600 hover:text-blue-700">View All</button>
+                    </div>
                     <div id="recent-activity" class="space-y-3">
                         <!-- Activity items will be inserted here -->
                     </div>
                 </div>
                 
                 <!-- Live Transcript -->
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-lg font-semibold mb-4 flex items-center">
-                        <i class="fas fa-comments text-blue-600 mr-2"></i>
-                        Live Transcript
-                    </h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                            <i class="fas fa-comments text-blue-600 mr-2"></i>
+                            Live Transcript
+                        </h3>
+                        <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Real-time</span>
+                    </div>
                     <div id="live-transcript" class="transcript-container space-y-2 max-h-96 overflow-y-auto">
-                        <p class="text-sm text-gray-500 italic">Waiting for active call...</p>
+                        <p class="text-sm text-gray-500 italic text-center py-8">Waiting for active call...</p>
                     </div>
                 </div>
             </div>
@@ -320,12 +562,15 @@
 
         <!-- Calls Tab -->
         <div id="content-calls" class="tab-content hidden">
-            <div class="bg-white rounded-lg shadow">
-                <div class="p-6 border-b border-gray-200">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-semibold">Call History</h3>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">Call History</h3>
+                            <p class="text-sm text-gray-500 mt-1">View and manage all incoming calls</p>
+                        </div>
                         <button onclick="refreshCalls()"
-                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            class="btn-primary bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-semibold text-sm">
                             <i class="fas fa-sync-alt mr-2"></i>Refresh
                         </button>
                     </div>
@@ -334,16 +579,15 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Caller</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Intent</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Caller</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Intent</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Duration</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="calls-table-body" class="bg-white divide-y divide-gray-200">
+                        <tbody id="calls-table-body" class="bg-white divide-y divide-gray-100">
                             <!-- Call rows will be inserted here -->
                         </tbody>
                     </table>
@@ -353,12 +597,15 @@
 
         <!-- Leads Tab -->
         <div id="content-leads" class="tab-content hidden">
-            <div class="bg-white rounded-lg shadow">
-                <div class="p-6 border-b border-gray-200">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-semibold">Lead Management</h3>
-                        <div class="flex space-x-2">
-                            <select class="border border-gray-300 rounded-lg px-4 py-2"
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">Lead Management</h3>
+                            <p class="text-sm text-gray-500 mt-1">Track and manage potential customers</p>
+                        </div>
+                        <div class="flex space-x-3">
+                            <select class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 onchange="filterLeads(this.value)">
                                 <option value="all">All Leads</option>
                                 <option value="high">High Value (7-10)</option>
@@ -366,7 +613,7 @@
                                 <option value="low">Low Value (1-3)</option>
                             </select>
                             <button onclick="refreshLeads()"
-                                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                class="btn-primary bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-semibold text-sm">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
                             </button>
                         </div>
@@ -376,17 +623,16 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Budget</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timeline
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Phone</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Email</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Score</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Budget</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Timeline</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="leads-table-body" class="bg-white divide-y divide-gray-200">
+                        <tbody id="leads-table-body" class="bg-white divide-y divide-gray-100">
                             <!-- Lead rows will be inserted here -->
                         </tbody>
                     </table>
@@ -396,24 +642,27 @@
 
         <!-- Appointments Tab -->
         <div id="content-appointments" class="tab-content hidden">
-            <div class="bg-white rounded-lg shadow">
-                <div class="p-6 border-b border-gray-200">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-semibold">Scheduled Appointments</h3>
-                        <div class="flex space-x-2">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">Scheduled Appointments</h3>
+                            <p class="text-sm text-gray-500 mt-1">Manage upcoming appointments</p>
+                        </div>
+                        <div class="flex space-x-3">
                             <button onclick="openBookingModal()"
-                                class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                                class="btn-success bg-green-600 text-white px-5 py-2.5 rounded-xl hover:bg-green-700 font-semibold text-sm">
                                 <i class="fas fa-plus mr-2"></i>Book Appointment
                             </button>
                             <button onclick="refreshAppointments()"
-                                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                class="btn-primary bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-semibold text-sm">
                                 <i class="fas fa-sync-alt mr-2"></i>Refresh
                             </button>
                         </div>
                     </div>
                 </div>
                 <div class="p-6">
-                    <div id="appointments-calendar" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div id="appointments-calendar" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         <!-- Appointment cards will be inserted here -->
                     </div>
                 </div>
@@ -421,58 +670,78 @@
         </div>
 
         <!-- Booking Modal -->
-        <div id="bookingModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                <div class="mt-3">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Book New Appointment</h3>
-                    <form id="booking-form" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                            <input type="text" id="bName" required
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2"
-                                placeholder="Customer Name">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                            <input type="tel" id="bPhone" required
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2"
-                                placeholder="Phone Number">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
-                            <input type="text" id="bService" required
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2"
-                                placeholder="Service Type (e.g. Consultation)">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                            <input type="datetime-local" id="bDateTime" required
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                            <textarea id="bNotes" rows="3"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2"
-                                placeholder="Notes (optional)"></textarea>
-                        </div>
-                        <div class="flex space-x-2 pt-2">
-                            <button type="submit"
-                                class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                                Confirm Booking
-                            </button>
-                            <button type="button" onclick="closeBookingModal()"
-                                class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
+        <div id="bookingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+            <div class="modal-content relative mx-auto p-8 border-0 w-full max-w-md shadow-2xl rounded-2xl bg-white">
+                <div class="mb-6">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-2">Book New Appointment</h3>
+                    <p class="text-sm text-gray-500">Schedule a new appointment for your customer</p>
                 </div>
+                <form id="booking-form" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Customer Name</label>
+                        <input type="text" id="bName" required
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="Enter customer name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
+                        <input type="tel" id="bPhone" required
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="Enter phone number">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Service Type</label>
+                        <input type="text" id="bService" required
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="e.g., Consultation, Haircut">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Date & Time</label>
+                        <input type="datetime-local" id="bDateTime" required
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Notes (Optional)</label>
+                        <textarea id="bNotes" rows="3"
+                            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="Add any additional notes..."></textarea>
+                    </div>
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit"
+                            class="flex-1 btn-primary bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 font-semibold">
+                            Confirm Booking
+                        </button>
+                        <button type="button" onclick="closeBookingModal()"
+                            class="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 font-semibold transition-all">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
         <!-- Configuration Tab -->
         <div id="content-config" class="tab-content hidden">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Business Name -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold mb-4">Business Name</h3>
+                    <p class="text-sm text-gray-600 mb-3">This name will be used in greetings and throughout conversations.</p>
+                    <form id="business-name-form" class="space-y-4">
+                        <input type="text" id="business-name-input" 
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            placeholder="e.g., Suresh Salon, ABC Clinic, XYZ Store">
+                        <div class="text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Used in greeting: "Thank you for calling [Business Name]"
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            Save Business Name
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Business Hours -->
                 <div class="bg-white rounded-lg shadow p-6">
                     <h3 class="text-lg font-semibold mb-4">Business Hours</h3>
@@ -590,21 +859,23 @@
 
         <!-- Documents Tab -->
         <div id="content-documents" class="tab-content hidden">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-lg font-semibold mb-4">Company Knowledge Base</h3>
-                <p class="text-gray-600 mb-6">Upload company documents to enhance AI responses with your business
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">Company Knowledge Base</h3>
+                    <p class="text-gray-600">Upload company documents to enhance AI responses with your business
                     information.</p>
+                </div>
 
                 <!-- Upload Area -->
-                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
-                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
-                    <p class="text-gray-600 mb-2">Drag and drop files here, or click to browse</p>
+                <div class="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center mb-6 bg-gradient-to-br from-gray-50 to-white hover:border-blue-400 transition-all">
+                    <i class="fas fa-cloud-upload-alt text-5xl text-blue-500 mb-4"></i>
+                    <p class="text-gray-700 font-semibold mb-2">Drag and drop files here, or click to browse</p>
                     <input type="file" id="document-upload" multiple class="hidden" onchange="handleFileUpload(event)">
                     <button onclick="document.getElementById('document-upload').click()"
-                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 mt-4">
-                        Choose Files
+                        class="btn-primary bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 mt-4 font-semibold">
+                        <i class="fas fa-folder-open mr-2"></i>Choose Files
                     </button>
-                    <p class="text-sm text-gray-500 mt-2">Supported: PDF, DOCX, TXT (Max 10MB)</p>
+                    <p class="text-sm text-gray-500 mt-3">Supported: PDF, DOCX, TXT (Max 10MB per file)</p>
                 </div>
 
                 <!-- Uploaded Documents -->

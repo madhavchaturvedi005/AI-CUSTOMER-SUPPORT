@@ -1,0 +1,39 @@
+[Unit]
+Description=AI Voice Assistant Service
+After=network.target
+Documentation=https://github.com/your-repo
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/voice-assistant
+Environment="PATH=/var/www/voice-assistant/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# Main command
+ExecStart=/var/www/voice-assistant/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 5050 --workers 1 --log-level info
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=0
+
+# Resource limits (for t3.micro with 1GB RAM)
+MemoryMax=800M
+MemoryHigh=700M
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/voice-assistant
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voice-assistant
+
+[Install]
+WantedBy=multi-user.target

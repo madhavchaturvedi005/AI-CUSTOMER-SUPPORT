@@ -101,7 +101,8 @@ class SessionState:
         self,
         appointment_manager=None,
         database=None,
-        lead_manager=None
+        lead_manager=None,
+        vector_service=None
     ) -> None:
         """
         Initialize tool executor with service dependencies.
@@ -110,13 +111,15 @@ class SessionState:
             appointment_manager: AppointmentManager instance
             database: DatabaseService instance
             lead_manager: LeadManager instance
+            vector_service: VectorService instance for RAG
         """
         from tools.tool_executor import ToolExecutor
         
         self.tool_executor = ToolExecutor(
             appointment_manager=appointment_manager,
             database=database,
-            lead_manager=lead_manager
+            lead_manager=lead_manager,
+            vector_service=vector_service
         )
     
     def add_pending_tool_call(self, call_id: str, tool_name: str, arguments: str) -> None:
